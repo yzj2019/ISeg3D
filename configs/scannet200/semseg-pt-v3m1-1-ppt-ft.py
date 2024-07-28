@@ -1,66 +1,82 @@
+from pointcept.datasets.preprocessing.scannet.meta_data.scannet200_constants import (
+    CLASS_LABELS_200,
+)
+
 _base_ = ["../_base_/default_runtime.py"]
 
 # misc custom setting
 batch_size = 12  # bs: total bs in all gpus
+num_worker = 24
 mix_prob = 0.8
 empty_cache = False
 enable_amp = True
+find_unused_parameters = True
 
 # model settings
 model = dict(
-    type="DefaultSegmentor",
+    type="DefaultSegmentorV2",
+    num_classes=200,
+    backbone_out_channels=64,
     backbone=dict(
-        type="SpUNet-v1m1",
+        type="PT-v3m1",
         in_channels=6,
-        num_classes=20,
-        channels=(32, 64, 128, 256, 256, 128, 96, 96),
-        layers=(2, 3, 4, 6, 2, 2, 2, 2),
+        order=("z", "z-trans", "hilbert", "hilbert-trans"),
+        stride=(2, 2, 2, 2),
+        enc_depths=(3, 3, 3, 6, 3),
+        enc_channels=(48, 96, 192, 384, 512),
+        enc_num_head=(3, 6, 12, 24, 32),
+        enc_patch_size=(1024, 1024, 1024, 1024, 1024),
+        dec_depths=(3, 3, 3, 3),
+        dec_channels=(64, 96, 192, 384),
+        dec_num_head=(4, 6, 12, 24),
+        dec_patch_size=(1024, 1024, 1024, 1024),
+        mlp_ratio=4,
+        qkv_bias=True,
+        qk_scale=None,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        drop_path=0.3,
+        shuffle_orders=True,
+        pre_norm=True,
+        enable_rpe=False,
+        enable_flash=True,
+        upcast_attention=False,
+        upcast_softmax=False,
+        cls_mode=False,
+        pdnorm_bn=True,
+        pdnorm_ln=True,
+        pdnorm_decouple=True,
+        pdnorm_adaptive=False,
+        pdnorm_affine=True,
+        pdnorm_conditions=("ScanNet", "S3DIS", "Structured3D"),
     ),
-    criteria=[dict(type="CrossEntropyLoss", loss_weight=1.0, ignore_index=-1)],
+    criteria=[
+        dict(type="CrossEntropyLoss", loss_weight=1.0, ignore_index=-1),
+        dict(type="LovaszLoss", mode="multiclass", loss_weight=1.0, ignore_index=-1),
+    ],
 )
-
 
 # scheduler settings
 epoch = 800
-optimizer = dict(type="SGD", lr=0.05, momentum=0.9, weight_decay=0.0001, nesterov=True)
+optimizer = dict(type="AdamW", lr=0.006, weight_decay=0.05)
 scheduler = dict(
     type="OneCycleLR",
-    max_lr=optimizer["lr"],
+    max_lr=[0.006, 0.0006],
     pct_start=0.05,
     anneal_strategy="cos",
     div_factor=10.0,
-    final_div_factor=10000.0,
+    final_div_factor=1000.0,
 )
+param_dicts = [dict(keyword="block", lr=0.0006)]
 
 # dataset settings
-dataset_type = "ScanNetDataset"
+dataset_type = "ScanNet200Dataset"
 data_root = "data/scannet"
 
 data = dict(
-    num_classes=20,
+    num_classes=200,
     ignore_index=-1,
-    names=[
-        "wall",
-        "floor",
-        "cabinet",
-        "bed",
-        "chair",
-        "sofa",
-        "table",
-        "door",
-        "window",
-        "bookshelf",
-        "picture",
-        "counter",
-        "desk",
-        "curtain",
-        "refridgerator",
-        "shower curtain",
-        "toilet",
-        "sink",
-        "bathtub",
-        "otherfurniture",
-    ],
+    names=CLASS_LABELS_200,
     train=dict(
         type=dataset_type,
         split="train",
@@ -91,14 +107,15 @@ data = dict(
                 mode="train",
                 return_grid_coord=True,
             ),
-            dict(type="SphereCrop", point_max=100000, mode="random"),
+            dict(type="SphereCrop", point_max=102400, mode="random"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
-            dict(type="ShufflePoint"),
+            # dict(type="ShufflePoint"),
+            dict(type="Add", keys_dict={"condition": "ScanNet"}),
             dict(type="ToTensor"),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "segment"),
+                keys=("coord", "grid_coord", "segment", "condition"),
                 feat_keys=("color", "normal"),
             ),
         ],
@@ -117,13 +134,13 @@ data = dict(
                 mode="train",
                 return_grid_coord=True,
             ),
-            # dict(type="SphereCrop", point_max=1000000, mode="center"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
+            dict(type="Add", keys_dict={"condition": "ScanNet"}),
             dict(type="ToTensor"),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "segment"),
+                keys=("coord", "grid_coord", "segment", "condition"),
                 feat_keys=("color", "normal"),
             ),
         ],
@@ -144,16 +161,17 @@ data = dict(
                 grid_size=0.02,
                 hash_type="fnv",
                 mode="test",
-                return_grid_coord=True,
                 keys=("coord", "color", "normal"),
+                return_grid_coord=True,
             ),
             crop=None,
             post_transform=[
                 dict(type="CenterShift", apply_z=False),
+                dict(type="Add", keys_dict={"condition": "ScanNet"}),
                 dict(type="ToTensor"),
                 dict(
                     type="Collect",
-                    keys=("coord", "grid_coord", "index"),
+                    keys=("coord", "grid_coord", "index", "condition"),
                     feat_keys=("color", "normal"),
                 ),
             ],

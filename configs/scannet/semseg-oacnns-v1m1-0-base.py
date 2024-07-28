@@ -5,31 +5,37 @@ batch_size = 12  # bs: total bs in all gpus
 mix_prob = 0.8
 empty_cache = False
 enable_amp = True
+sync_bn = True
 
 # model settings
 model = dict(
     type="DefaultSegmentor",
     backbone=dict(
-        type="SpUNet-v1m1",
-        in_channels=6,
+        type="OACNNs",
+        in_channels=9,
         num_classes=20,
-        channels=(32, 64, 128, 256, 256, 128, 96, 96),
-        layers=(2, 3, 4, 6, 2, 2, 2, 2),
+        embed_channels=64,
+        enc_channels=[64, 64, 128, 256],
+        groups=[4, 4, 8, 16],
+        enc_depth=[3, 3, 9, 8],
+        dec_channels=[256, 256, 256, 256],
+        point_grid_size=[[8, 12, 16, 16], [6, 9, 12, 12], [4, 6, 8, 8], [3, 4, 6, 6]],
+        dec_depth=[2, 2, 2, 2],
+        enc_num_ref=[16, 16, 16, 16],
     ),
     criteria=[dict(type="CrossEntropyLoss", loss_weight=1.0, ignore_index=-1)],
 )
 
 
-# scheduler settings
-epoch = 800
-optimizer = dict(type="SGD", lr=0.05, momentum=0.9, weight_decay=0.0001, nesterov=True)
+epoch = 900
+optimizer = dict(type="AdamW", lr=0.001, weight_decay=0.02)
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
     pct_start=0.05,
     anneal_strategy="cos",
     div_factor=10.0,
-    final_div_factor=10000.0,
+    final_div_factor=1000.0,
 )
 
 # dataset settings
@@ -70,7 +76,7 @@ data = dict(
             dict(
                 type="RandomDropout", dropout_ratio=0.2, dropout_application_ratio=0.2
             ),
-            # dict(type="RandomRotateTargetAngle", angle=(1/2, 1, 3/2), center=[0, 0, 0], axis="z", p=0.75),
+            # dict(type="RandomRotateTargetAngle", angle=(1/2, 1, 3/2), center=[0, 0, 0], axis='z', p=0.75),
             dict(type="RandomRotate", angle=[-1, 1], axis="z", center=[0, 0, 0], p=0.5),
             dict(type="RandomRotate", angle=[-1 / 64, 1 / 64], axis="x", p=0.5),
             dict(type="RandomRotate", angle=[-1 / 64, 1 / 64], axis="y", p=0.5),
@@ -90,7 +96,9 @@ data = dict(
                 hash_type="fnv",
                 mode="train",
                 return_grid_coord=True,
+                return_min_coord=True,
             ),
+            dict(type="SphereCrop", sample_rate=0.8, mode="random"),
             dict(type="SphereCrop", point_max=100000, mode="random"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
@@ -99,7 +107,7 @@ data = dict(
             dict(
                 type="Collect",
                 keys=("coord", "grid_coord", "segment"),
-                feat_keys=("color", "normal"),
+                feat_keys=("coord", "normal", "color"),
             ),
         ],
         test_mode=False,
@@ -116,15 +124,16 @@ data = dict(
                 hash_type="fnv",
                 mode="train",
                 return_grid_coord=True,
+                return_min_coord=True,
             ),
-            # dict(type="SphereCrop", point_max=1000000, mode="center"),
+            # dict(type="SphereCrop", point_max=1000000, mode='center'),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
             dict(type="ToTensor"),
             dict(
                 type="Collect",
                 keys=("coord", "grid_coord", "segment"),
-                feat_keys=("color", "normal"),
+                feat_keys=("coord", "normal", "color"),
             ),
         ],
         test_mode=False,
@@ -145,7 +154,7 @@ data = dict(
                 hash_type="fnv",
                 mode="test",
                 return_grid_coord=True,
-                keys=("coord", "color", "normal"),
+                keys=("coord", "normal", "color"),
             ),
             crop=None,
             post_transform=[
@@ -154,7 +163,7 @@ data = dict(
                 dict(
                     type="Collect",
                     keys=("coord", "grid_coord", "index"),
-                    feat_keys=("color", "normal"),
+                    feat_keys=("coord", "normal", "color"),
                 ),
             ],
             aug_transform=[
