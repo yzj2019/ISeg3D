@@ -17,6 +17,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("ball_query_cuda", &ball_query_cuda, "ball_query_cuda");
     m.def("random_ball_query_cuda", &random_ball_query_cuda, "random_ball_query_cuda");
     m.def("farthest_point_sampling_cuda", &farthest_point_sampling_cuda, "farthest_point_sampling_cuda");
+    m.def("farthest_point_sampling_with_dist_cuda", &farthest_point_sampling_with_dist_cuda, "farthest_point_sampling_with_dist_cuda");
     m.def("grouping_forward_cuda", &grouping_forward_cuda, "grouping_forward_cuda");
     m.def("grouping_backward_cuda", &grouping_backward_cuda, "grouping_backward_cuda");
     m.def("interpolation_forward_cuda", &interpolation_forward_cuda, "interpolation_forward_cuda");

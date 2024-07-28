@@ -194,6 +194,12 @@ class Trainer(TrainerBase):
                 self.scheduler.step()
         else:
             loss.backward()
+            no_grad = []
+            for name, param in self.model.named_parameters():
+                if param.grad is None:
+                    no_grad.append(name)
+            if len(no_grad) > 0:
+                print('no grad:\n', no_grad)
             self.optimizer.step()
             self.scheduler.step()
         if self.cfg.empty_cache:

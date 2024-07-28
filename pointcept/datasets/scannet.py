@@ -125,6 +125,16 @@ class ScanNetDataset(Dataset):
             data_dict["sampled_index"] = sampled_index
         return data_dict
 
+    # modified for ins seg
+    def get_idx_by_name(self, scene_name):
+        '''scene_name like 'scene0011_00'''
+        return [self.data_list.index(s) for s in self.data_list if scene_name in s][0]
+
+    def get_data_by_name(self, scene_name):
+        '''scene_name like 'scene0011_00'''
+        idx = self.get_idx_by_name(scene_name)
+        return self.get_data(idx)
+
     def get_data_name(self, idx):
         return os.path.basename(self.data_list[idx % len(self.data_list)]).split(".")[0]
 
@@ -139,6 +149,12 @@ class ScanNetDataset(Dataset):
         data_dict = self.get_data(idx)
         segment = data_dict.pop("segment")
         data_dict = self.transform(data_dict)
+        # modified for ins seg
+        coord = data_dict["coord"]
+        if "instance" in data_dict.keys():
+            instance = data_dict.pop("instance")
+        else:
+            instance = None
         data_dict_list = []
         for aug in self.aug_transform:
             data_dict_list.append(aug(deepcopy(data_dict)))
@@ -156,7 +172,7 @@ class ScanNetDataset(Dataset):
         for i in range(len(input_dict_list)):
             input_dict_list[i] = self.post_transform(input_dict_list[i])
         data_dict = dict(
-            fragment_list=input_dict_list, segment=segment, name=self.get_data_name(idx)
+            fragment_list=input_dict_list, segment=segment, instance=instance, name=self.get_data_name(idx), coord=coord
         )
         return data_dict
 

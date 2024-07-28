@@ -1,0 +1,1 @@
+tensorboard --logdir=exp/scannet/mask3d-15 --port=8001

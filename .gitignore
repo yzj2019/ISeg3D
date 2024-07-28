@@ -13,4 +13,8 @@ outputs/
 .idea
 */.DS_Store
 **/*.out
-Dockerfile
+docker
+tmp
+vis
+notebook
+test

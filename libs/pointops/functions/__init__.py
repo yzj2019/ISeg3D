@@ -1,5 +1,5 @@
 from .query import knn_query, ball_query, random_ball_query
-from .sampling import farthest_point_sampling
+from .sampling import farthest_point_sampling, farthest_point_sampling_with_dist
 from .grouping import grouping, grouping2
 from .interpolation import interpolation, interpolation2
 from .subtraction import subtraction

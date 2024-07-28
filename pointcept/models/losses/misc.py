@@ -40,6 +40,26 @@ class CrossEntropyLoss(nn.Module):
 
 
 @LOSSES.register_module()
+class BinaryCrossEntropyLoss(nn.Module):
+    def __init__(self,
+                 reduction='mean',
+                 logits=False,
+                 loss_weight=1.0
+                 ):
+        super(BinaryCrossEntropyLoss, self).__init__()
+        self.reduction = reduction
+        self.logits = logits
+        self.loss_weight = loss_weight
+
+    def forward(self, pred, target):
+        if self.logits:
+            loss = F.binary_cross_entropy_with_logits(pred, target, reduction=self.reduction)
+        else:
+            loss = F.binary_cross_entropy(pred, target, reduction=self.reduction)
+        return loss * self.loss_weight
+
+
+@LOSSES.register_module()
 class SmoothCELoss(nn.Module):
     def __init__(self, smoothing_ratio=0.1):
         super(SmoothCELoss, self).__init__()
@@ -172,6 +192,54 @@ class FocalLoss(nn.Module):
         return self.loss_weight * loss
 
 
+@LOSSES.register_module()
+class BinaryDiceLoss(nn.Module):
+    """Dice loss of binary class
+    Args:
+        smooth: A float number to smooth loss, and avoid NaN error, default: 1
+        exponent: Denominator value: \sum{x^p} + \sum{y^p}, default: 2
+        predict: A tensor of shape [N_points, N_masks]
+        target: A tensor of shape same with predict
+        reduction: Reduction method to apply, return mean over batch if 'mean',
+            return sum if 'sum', return a tensor of shape [N_masks,] if 'none'
+        logits: if True, predict is unnormalized
+    Returns:
+        Loss tensor according to arg reduction
+    Raise:
+        Exception if unexpected reduction
+    """
+    def __init__(self, smooth=1, exponent=2, reduction='mean', logits=False, loss_weight=1.0):
+        super(BinaryDiceLoss, self).__init__()
+        self.smooth = smooth
+        self.exponent = exponent
+        self.reduction = reduction
+        self.logits = logits
+        self.loss_weight = loss_weight
+
+    def forward(self, predict, target):
+        assert predict.shape[0] == target.shape[0], "predict & target size 0 don't match"
+        predict = predict.contiguous().view(predict.shape[0], -1)
+        target = target.contiguous().view(target.shape[0], -1)
+
+        if self.logits:
+            predict = predict.sigmoid()
+
+        num = torch.sum(torch.mul(predict, target), dim=0) * 2 + self.smooth
+        den = torch.sum(predict.pow(self.exponent) + target.pow(self.exponent), dim=0) + self.smooth
+
+        loss = 1 - num / den
+
+        if self.reduction == 'mean':
+            return self.loss_weight * loss.mean()
+        elif self.reduction == 'sum':
+            return self.loss_weight * loss.sum()
+        elif self.reduction == 'none':
+            return self.loss_weight * loss
+        else:
+            raise Exception('Unexpected reduction {}'.format(self.reduction))
+
+
+# TODO 改成可选是否做mean操作
 @LOSSES.register_module()
 class DiceLoss(nn.Module):
     def __init__(self, smooth=1, exponent=2, loss_weight=1.0, ignore_index=-1):

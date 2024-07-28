@@ -4,7 +4,11 @@
 #include <torch/serialize/tensor.h>
 #include <ATen/cuda/CUDAContext.h>
 
+
 void farthest_point_sampling_cuda(int b, int n, at::Tensor xyz_tensor, at::Tensor offset_tensor, at::Tensor new_offset_tensor, at::Tensor tmp_tensor, at::Tensor idx_tensor);
+
+void farthest_point_sampling_with_dist_cuda(int b, int n_max, int n_all, at::Tensor distance_tensor, at::Tensor offset_tensor, at::Tensor new_offset_tensor, at::Tensor tmp_tensor, at::Tensor idx_tensor);
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,7 +16,11 @@ extern "C" {
 
 void farthest_point_sampling_cuda_launcher(int b, int n, const float *xyz, const int *offset, const int *new_offset, float *tmp, int *idx);
 
+void farthest_point_sampling_with_dist_cuda_launcher(int b, int n_max, int n_all, const float *distance, const int *offset, const int *new_offset, float *tmp, int *idx);
+
 #ifdef __cplusplus
 }
 #endif
+
+
 #endif
