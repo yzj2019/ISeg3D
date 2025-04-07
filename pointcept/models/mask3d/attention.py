@@ -2,7 +2,7 @@
 注意力机制的计算, 以及封装成 attention layer/block
 
 默认 batch_first=True
-仿照 nn.MultiheadAttention 和 F.multi_head_attention_forward, 只写 attn_drop; 
+仿照 nn.MultiheadAttention 和 F.multi_head_attention_forward, 只写 attn_drop;
 layer norm、attention和ffn linear/activation 后的drop out、shortcut、positional embedding, 都写在 transformer layer里;
 注意在 MHA 中实现 attn_mask、key_padding_mask
 """

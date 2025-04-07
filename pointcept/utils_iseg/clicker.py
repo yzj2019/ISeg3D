@@ -1,5 +1,5 @@
 """
-clicker, 参考 EMC-click 
+clicker, 参考 EMC-click
 https://github.com/feiaxyt/EMC-Click/blob/main/isegm/inference/clicker.py
 
 要求有.set_state(), .update_pred(), .make_init_clicks(), .make_next_clicks()方法

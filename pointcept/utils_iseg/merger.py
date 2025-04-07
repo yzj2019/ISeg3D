@@ -1,7 +1,7 @@
 """
 group & merge, 参考 SAM3D、pointcept
-https://github.com/Pointcept/SegmentAnything3D 
-pointcept/engines/hooks/evaluator.py InsSegEvaluator 
+https://github.com/Pointcept/SegmentAnything3D
+pointcept/engines/hooks/evaluator.py InsSegEvaluator
 """
 
 import torch
