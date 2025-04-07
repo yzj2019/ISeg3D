@@ -10,6 +10,7 @@ import glob
 import os
 import shutil
 import time
+import gc
 import torch
 import torch.utils.data
 from collections import OrderedDict
@@ -19,8 +20,9 @@ if sys.version_info >= (3, 10):
 else:
     from collections import Sequence
 from pointcept.utils.timer import Timer
-from pointcept.utils.comm import is_main_process, synchronize, get_world_size
+from pointcept.utils.comm import is_main_process, synchronize
 from pointcept.utils.cache import shared_dict
+from pointcept.utils.scheduler import CosineScheduler
 import pointcept.utils.comm as comm
 from pointcept.engines.test import TESTERS
 
@@ -38,7 +40,8 @@ class IterationTimer(HookBase):
 
     def before_train(self):
         self._start_time = time.perf_counter()
-        self._remain_iter = self.trainer.max_epoch * len(self.trainer.train_loader)
+        _remain_epoch = self.trainer.max_epoch - self.trainer.start_epoch
+        self._remain_iter = _remain_epoch * len(self.trainer.train_loader)
 
     def before_epoch(self):
         self._iter_timer.reset()
@@ -86,14 +89,6 @@ class InformationWriter(HookBase):
 
     def before_step(self):
         self.curr_iter += 1
-        # MSC pretrain do not have offset information. Comment the code for support MSC
-        # info = "Train: [{epoch}/{max_epoch}][{iter}/{max_iter}] " \
-        #        "Scan {batch_size} ({points_num}) ".format(
-        #     epoch=self.trainer.epoch + 1, max_epoch=self.trainer.max_epoch,
-        #     iter=self.trainer.comm_info["iter"], max_iter=len(self.trainer.train_loader),
-        #     batch_size=len(self.trainer.comm_info["input_dict"]["offset"]),
-        #     points_num=self.trainer.comm_info["input_dict"]["offset"][-1]
-        # )
         info = "Train: [{epoch}/{max_epoch}][{iter}/{max_iter}] ".format(
             epoch=self.trainer.epoch + 1,
             max_epoch=self.trainer.max_epoch,
@@ -118,7 +113,7 @@ class InformationWriter(HookBase):
         self.trainer.logger.info(self.trainer.comm_info["iter_info"])
         self.trainer.comm_info["iter_info"] = ""  # reset iter info
         if self.trainer.writer is not None:
-            self.trainer.writer.add_scalar("lr", lr, self.curr_iter)
+            self.trainer.writer.add_scalar("params/lr", lr, self.curr_iter)
             for key in self.model_output_keys:
                 self.trainer.writer.add_scalar(
                     "train_batch/" + key,
@@ -217,6 +212,7 @@ class CheckpointLoader(HookBase):
             checkpoint = torch.load(
                 self.trainer.cfg.weight,
                 map_location=lambda storage, loc: storage.cuda(),
+                weights_only=False,
             )
             self.trainer.logger.info(
                 f"Loading layer weights with keyword: {self.keywords}, "
@@ -228,7 +224,7 @@ class CheckpointLoader(HookBase):
                     key = "module." + key  # xxx.xxx -> module.xxx.xxx
                 # Now all keys contain "module." no matter DDP or not.
                 if self.keywords in key:
-                    key = key.replace(self.keywords, self.replacement)
+                    key = key.replace(self.keywords, self.replacement, 1)
                 if comm.get_world_size() == 1:
                     key = key[7:]  # module.xxx.xxx -> xxx.xxx
                 weight[key] = value
@@ -271,7 +267,7 @@ class PreciseEvaluator(HookBase):
             best_path = os.path.join(
                 self.trainer.cfg.save_path, "model", "model_best.pth"
             )
-            checkpoint = torch.load(best_path)
+            checkpoint = torch.load(best_path, weights_only=False)
             state_dict = checkpoint["state_dict"]
             tester.model.load_state_dict(state_dict, strict=True)
         tester.test()
@@ -462,3 +458,60 @@ class RuntimeProfilerV2(HookBase):
 
         if self.interrupt:
             sys.exit(0)
+
+
+@HOOKS.register_module()
+class WeightDecaySchedular(HookBase):
+    def __init__(
+        self,
+        base_value=0.04,
+        final_value=0.2,
+    ):
+        self.base_value = base_value
+        self.final_value = final_value
+        self.scheduler = None
+
+    def before_train(self):
+        curr_step = self.trainer.start_epoch * len(self.trainer.train_loader)
+        self.scheduler = CosineScheduler(
+            base_value=self.base_value,
+            final_value=self.final_value,
+            total_iters=self.trainer.cfg.scheduler.total_steps,
+        )
+        self.scheduler.iter = curr_step
+
+    def before_step(self):
+        wd = self.scheduler.step()
+        for param_group in self.trainer.optimizer.param_groups:
+            param_group["weight_decay"] = wd
+        if self.trainer.writer is not None:
+            self.trainer.writer.add_scalar("params/wd", wd, self.scheduler.iter)
+
+
+@HOOKS.register_module()
+class GarbageHandler(HookBase):
+    def __init__(self, interval=150, disable_auto=True, empty_cache=False):
+        self.interval = interval
+        self.disable_auto = disable_auto
+        self.empty_cache = empty_cache
+        self.iter = 1
+
+    def before_train(self):
+        if self.disable_auto:
+            gc.disable()
+            self.trainer.logger.info("Disable automatic garbage collection")
+
+    def before_epoch(self):
+        self.iter = 1
+
+    def after_step(self):
+        if self.iter % self.interval == 0:
+            gc.collect()
+            if self.empty_cache:
+                torch.cuda.empty_cache()
+            self.trainer.logger.info("Garbage collected")
+        self.iter += 1
+
+    def after_train(self):
+        gc.collect()
+        torch.cuda.empty_cache()

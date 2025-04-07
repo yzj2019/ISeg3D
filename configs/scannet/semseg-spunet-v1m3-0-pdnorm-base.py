@@ -102,7 +102,7 @@ data = dict(
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
             dict(type="ShufflePoint"),
-            dict(type="Add", keys_dict=dict(condition="ScanNet")),
+            dict(type="Update", keys_dict=dict(condition="ScanNet")),
             dict(type="ToTensor"),
             dict(
                 type="Collect",
@@ -128,7 +128,7 @@ data = dict(
             # dict(type="SphereCrop", point_max=1000000, mode="center"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
-            dict(type="Add", keys_dict=dict(condition="ScanNet")),
+            dict(type="Update", keys_dict=dict(condition="ScanNet")),
             dict(type="ToTensor"),
             dict(
                 type="Collect",
@@ -154,12 +154,11 @@ data = dict(
                 hash_type="fnv",
                 mode="test",
                 return_grid_coord=True,
-                keys=("coord", "color", "normal"),
             ),
             crop=None,
             post_transform=[
                 dict(type="CenterShift", apply_z=False),
-                dict(type="Add", keys_dict=dict(condition="ScanNet")),
+                dict(type="Update", keys_dict=dict(condition="ScanNet")),
                 dict(type="ToTensor"),
                 dict(
                     type="Collect",

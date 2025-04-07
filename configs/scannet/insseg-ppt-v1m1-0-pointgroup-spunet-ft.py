@@ -184,7 +184,6 @@ data = dict(
                 hash_type="fnv",
                 mode="train",
                 return_grid_coord=True,
-                keys=("coord", "color", "normal", "segment", "instance"),
             ),
             dict(type="SphereCrop", sample_rate=0.8, mode="random"),
             dict(type="NormalizeColor"),
@@ -193,7 +192,7 @@ data = dict(
                 segment_ignore_index=segment_ignore_index,
                 instance_ignore_index=-1,
             ),
-            dict(type="Add", keys_dict={"condition": "ScanNet"}),
+            dict(type="Update", keys_dict={"condition": "ScanNet"}),
             dict(type="ToTensor"),
             dict(
                 type="Collect",
@@ -231,7 +230,6 @@ data = dict(
                 hash_type="fnv",
                 mode="train",
                 return_grid_coord=True,
-                keys=("coord", "color", "normal", "segment", "instance"),
             ),
             # dict(type="SphereCrop", point_max=1000000, mode='center'),
             dict(type="CenterShift", apply_z=False),
@@ -241,7 +239,7 @@ data = dict(
                 segment_ignore_index=segment_ignore_index,
                 instance_ignore_index=-1,
             ),
-            dict(type="Add", keys_dict={"condition": "ScanNet"}),
+            dict(type="Update", keys_dict={"condition": "ScanNet"}),
             dict(type="ToTensor"),
             dict(
                 type="Collect",

@@ -800,7 +800,6 @@ class GridSample(object):
         grid_size=0.05,
         hash_type="fnv",
         mode="train",
-        keys=("coord", "color", "normal", "segment"),
         return_inverse=False,
         return_grid_coord=False,
         return_min_coord=False,
