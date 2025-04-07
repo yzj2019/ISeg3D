@@ -113,7 +113,6 @@ class Mask3dSegmentor(nn.Module):
         # elif self.query_type == "zero":
         #     # zero feat, only sample pe
         #     self.in_proj_query_pe = nn.Linear(self.features_dims[-1], self.embedding_dim)
-        # TODO query、aux
         # positional encoding
         self.pos_enc = PositionEmbeddingCoordsSine(
             pos_type="fourier",

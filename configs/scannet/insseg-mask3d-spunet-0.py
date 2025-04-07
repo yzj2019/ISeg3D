@@ -144,9 +144,9 @@ test = dict(type="InsSegTester")
 
 # scheduler settings
 evaluate = True
-epoch = 600  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
+epoch = 200  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
 eval_epoch = 100
-optimizer = dict(type="AdamW", lr=0.0006, weight_decay=0.0001)  # lr: 6e-4
+optimizer = dict(type="AdamW", lr=0.0005, weight_decay=0.0001)  # lr: 6e-4
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
@@ -195,7 +195,6 @@ data = dict(
                 hash_type="fnv",
                 mode="train",
                 return_grid_coord=True,
-                keys=("coord", "color", "normal", "segment", "instance"),
             ),
             dict(type="SphereCrop", point_max=102400, mode="random"),
             dict(type="CenterShift", apply_z=False),
@@ -228,7 +227,6 @@ data = dict(
                 hash_type="fnv",
                 mode="train",
                 return_grid_coord=True,
-                keys=("coord", "color", "normal", "segment", "instance"),
             ),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
@@ -261,7 +259,6 @@ data = dict(
                 grid_size=0.02,
                 hash_type="fnv",
                 mode="test",
-                keys=("coord", "color", "normal", "segment", "instance"),
                 return_grid_coord=True,
                 return_inverse=True,
             ),
