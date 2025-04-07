@@ -29,4 +29,3 @@ from .segment_anything import *
 from .iseg3d_sam import *
 from .agile3d import *
 from .mask3d import *
-

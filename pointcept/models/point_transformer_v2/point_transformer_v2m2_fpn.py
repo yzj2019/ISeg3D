@@ -101,10 +101,10 @@ class GroupedVectorAttention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop_rate)
 
     def forward(self, feat, coord, reference_index):
-        '''
+        """
         这里根据 knn 的邻域 reference_index 做 attn, 而 batched points 是 concate 到一起的, \\
         knn 时需要 offset 去避免查询到别的 scene 的数据, 因此也避免了 attn 时 query 到别的 scene 的数据
-        '''
+        """
         query, key, value = (
             self.linear_q(feat),
             self.linear_k(feat),
@@ -474,7 +474,7 @@ class PointTransformerV2(nn.Module):
         drop_path_rate=0,
         enable_checkpoint=False,
         unpool_backend="map",
-        out_fpn=False
+        out_fpn=False,
     ):
         super(PointTransformerV2, self).__init__()
         self.in_channels = in_channels
@@ -488,7 +488,7 @@ class PointTransformerV2(nn.Module):
         assert self.num_stages == len(enc_neighbours)
         assert self.num_stages == len(dec_neighbours)
         assert self.num_stages == len(grid_sizes)
-        self.out_fpn = out_fpn          # 返回 feature map list
+        self.out_fpn = out_fpn  # 返回 feature map list
         self.patch_embed = GVAPatchEmbed(
             in_channels=in_channels,
             embed_channels=patch_embed_channels,

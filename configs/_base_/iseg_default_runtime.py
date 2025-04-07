@@ -30,7 +30,7 @@ hooks = [
     dict(type="ClicksMaker"),
     dict(type="InteractiveSemSegEvaluator"),
     dict(type="CheckpointSaver", save_freq=None),
-    dict(type="PreciseEvaluator", test_last=False)
+    dict(type="PreciseEvaluator", test_last=False),
 ]
 
 # Trainer

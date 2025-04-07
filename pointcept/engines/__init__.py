@@ -6,7 +6,4 @@ from . import train
 from . import test
 from . import iseg
 
-__all__ = [
-    'TRAINERS', 
-    'TESTERS'
-]
+__all__ = ["TRAINERS", "TESTERS"]

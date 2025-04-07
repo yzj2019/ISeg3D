@@ -373,7 +373,7 @@ class SerializedPooling(PointModule):
         pooling_depth = (math.ceil(self.stride) - 1).bit_length()
         if pooling_depth > point.serialized_depth:
             pooling_depth = 0
-        
+
         # 2. 检查输入点云是否包含必要的序列化信息
         assert {
             "serialized_code",
@@ -386,7 +386,7 @@ class SerializedPooling(PointModule):
 
         # 3. 通过位移操作生成下采样的代码
         code = point.serialized_code >> pooling_depth * 3
-        
+
         # 4. 使用 torch.unique 获取聚类信息
         code_, cluster, counts = torch.unique(
             code[0],
@@ -401,7 +401,7 @@ class SerializedPooling(PointModule):
         idx_ptr = torch.cat([counts.new_zeros(1), torch.cumsum(counts, dim=0)])
         # head_indices of each cluster, for reduce attr e.g. code, batch
         head_indices = indices[idx_ptr[:-1]]
-        
+
         # 6. 生成下采样后的代码、顺序和逆序信息
         code = code[:, head_indices]
         order = torch.argsort(code)
@@ -445,7 +445,7 @@ class SerializedPooling(PointModule):
         if self.traceable:
             point_dict["pooling_inverse"] = cluster
             point_dict["pooling_parent"] = point
-        
+
         # 11. 创建新的点云对象并进行稀疏化处理
         point = Point(point_dict)
         if self.norm is not None:
@@ -527,11 +527,11 @@ class Embedding(PointModule):
         return point
 
 
-
 class FeaturePyramid(PointModule):
-    '''特征金字塔, 收集不同分辨率的特征图'''
+    """特征金字塔, 收集不同分辨率的特征图"""
+
     def __init__(self):
-        '''只实例化一次, 加在每个 decoder stage 结尾'''
+        """只实例化一次, 加在每个 decoder stage 结尾"""
         super().__init__()
         self.feature_maps = []
 
@@ -543,18 +543,18 @@ class FeaturePyramid(PointModule):
     def forward(self, point: Point):
         self.feature_maps.append(point)
         return point
-    
+
     @property
     def resolutions(self):
         return [x.shape for x in self.feature_maps]
-    
+
     def downsample(self, x: torch.Tensor, dim=0, from_resolution=0, to_resolution=0):
-        '''
+        """
         将 x 的 dim 维度, 从 from_resolution 分辨率, 下采样到 to_resolution 分辨率
         - dim: int, x 的维度
         - from_resolution: int, 源分辨率对应的 feature_maps 中的索引
         - to_resolution: int, 目标分辨率对应的 feature_maps 中的索引
-        '''
+        """
         return x
 
 
@@ -692,7 +692,9 @@ class PointTransformerV3_FPN(PointModule):
 
         # 特征金字塔, 收集每个 encoder stage 的特征图
         self.feature_pyramid = FeaturePyramid()
-        self.enc.add(self.feature_pyramid, name="feature_pyramid")  # 加在 encoder 的最后
+        self.enc.add(
+            self.feature_pyramid, name="feature_pyramid"
+        )  # 加在 encoder 的最后
         # decoder
         if not self.cls_mode:
             dec_drop_path = [
@@ -741,7 +743,9 @@ class PointTransformerV3_FPN(PointModule):
                         name=f"block{i}",
                     )
                 self.dec.add(module=dec, name=f"dec{s}")
-                self.dec.add(self.feature_pyramid, name=f"feature_pyramid{s}")      # 加在每个 decoder stage 的最后
+                self.dec.add(
+                    self.feature_pyramid, name=f"feature_pyramid{s}"
+                )  # 加在每个 decoder stage 的最后
 
     def forward(self, data_dict):
         point = Point(data_dict)

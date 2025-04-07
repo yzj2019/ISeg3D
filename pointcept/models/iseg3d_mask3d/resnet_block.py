@@ -30,9 +30,7 @@ class BasicBlockBase(nn.Module):
             conv_type=conv_type,
             D=D,
         )
-        self.norm1 = get_norm(
-            self.NORM_TYPE, planes, D, bn_momentum=bn_momentum
-        )
+        self.norm1 = get_norm(self.NORM_TYPE, planes, D, bn_momentum=bn_momentum)
         self.conv2 = conv(
             planes,
             planes,
@@ -43,9 +41,7 @@ class BasicBlockBase(nn.Module):
             conv_type=conv_type,
             D=D,
         )
-        self.norm2 = get_norm(
-            self.NORM_TYPE, planes, D, bn_momentum=bn_momentum
-        )
+        self.norm2 = get_norm(self.NORM_TYPE, planes, D, bn_momentum=bn_momentum)
         self.relu = MinkowskiReLU(inplace=True)
         self.downsample = downsample
 
@@ -97,9 +93,7 @@ class BottleneckBase(nn.Module):
     ):
         super().__init__()
         self.conv1 = conv(inplanes, planes, kernel_size=1, D=D)
-        self.norm1 = get_norm(
-            self.NORM_TYPE, planes, D, bn_momentum=bn_momentum
-        )
+        self.norm1 = get_norm(self.NORM_TYPE, planes, D, bn_momentum=bn_momentum)
 
         self.conv2 = conv(
             planes,
@@ -110,9 +104,7 @@ class BottleneckBase(nn.Module):
             conv_type=conv_type,
             D=D,
         )
-        self.norm2 = get_norm(
-            self.NORM_TYPE, planes, D, bn_momentum=bn_momentum
-        )
+        self.norm2 = get_norm(self.NORM_TYPE, planes, D, bn_momentum=bn_momentum)
 
         self.conv3 = conv(planes, planes * self.expansion, kernel_size=1, D=D)
         self.norm3 = get_norm(

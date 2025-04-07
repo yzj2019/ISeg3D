@@ -13,7 +13,8 @@ from typing import Optional, Tuple, List
 
 
 class MySamPredictor(SamPredictor):
-    '''重写SamPredictor, 增加获取decode后的prompt token的方法'''
+    """重写SamPredictor, 增加获取decode后的prompt token的方法"""
+
     def set_image_list(
         self,
         image_list: List[np.ndarray],
@@ -47,19 +48,20 @@ class MySamPredictor(SamPredictor):
 
         self.set_torch_image(input_images_torch, images.shape[1:3])
 
-
-    def get_token(self,
+    def get_token(
+        self,
         point_coords: Optional[np.ndarray] = None,
         point_labels: Optional[np.ndarray] = None,
         box: Optional[np.ndarray] = None,
         mask_input: Optional[np.ndarray] = None,
         multimask_output: bool = True,
         return_logits: bool = False,
-        hq_token_only: bool =False,):
-        '''
+        hq_token_only: bool = False,
+    ):
+        """
         获取prompt对应的token embedding
-        
-        '''
+
+        """
         # Transform input prompts
         coords_torch, labels_torch, box_torch, mask_input_torch = None, None, None, None
         if point_coords is not None:
@@ -67,13 +69,19 @@ class MySamPredictor(SamPredictor):
                 point_labels is not None
             ), "point_labels must be supplied if point_coords is supplied."
             point_coords = self.transform.apply_coords(point_coords, self.original_size)
-            coords_torch = torch.as_tensor(point_coords, dtype=torch.float, device=self.device)
-            labels_torch = torch.as_tensor(point_labels, dtype=torch.int, device=self.device)
+            coords_torch = torch.as_tensor(
+                point_coords, dtype=torch.float, device=self.device
+            )
+            labels_torch = torch.as_tensor(
+                point_labels, dtype=torch.int, device=self.device
+            )
             coords_torch, labels_torch = coords_torch[None, :, :], labels_torch[None, :]
         if box is not None:
             box = self.transform.apply_boxes(box, self.original_size)
             box_torch = torch.as_tensor(box, dtype=torch.float, device=self.device)
             box_torch = box_torch[None, :]
         if mask_input is not None:
-            mask_input_torch = torch.as_tensor(mask_input, dtype=torch.float, device=self.device)
+            mask_input_torch = torch.as_tensor(
+                mask_input, dtype=torch.float, device=self.device
+            )
             mask_input_torch = mask_input_torch[None, :, :, :]

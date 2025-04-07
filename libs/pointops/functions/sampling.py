@@ -1,7 +1,10 @@
 import torch
 from torch.autograd import Function
 
-from pointops._C import farthest_point_sampling_cuda, farthest_point_sampling_with_dist_cuda
+from pointops._C import (
+    farthest_point_sampling_cuda,
+    farthest_point_sampling_with_dist_cuda,
+)
 
 
 class FarthestPointSampling(Function):

@@ -15,27 +15,34 @@ from pointcept.utils import comm
 from pointcept.utils_iseg.ins_seg import associate_matched_ins, evaluate_matched_ins
 
 
-
 @HOOKS.register_module()
 class ISegEvaluator(HookBase):
-    '''验证集上, 测试 instance segmentation metric\n
+    """验证集上, 测试 instance segmentation metric\n
     相当于把 .evaluator.py 中的 InsSegEvaluator 拆分了可复用的部分出去\n
-    需要自行在 model inference 中指定 matched_idx, 
+    需要自行在 model inference 中指定 matched_idx,
     因此也可以用来验证 center point query 的 AP@1
-    '''
-    def __init__(self, semantic_ignore=-1, instance_ignore=-1, semantic_background=(0,1)):
+    """
+
+    def __init__(
+        self, semantic_ignore=-1, instance_ignore=-1, semantic_background=(0, 1)
+    ):
         self.semantic_ignore = semantic_ignore
-        self.instance_ignore = instance_ignore      # 没用到, mask 在 get_target 中构建成了 [N_ins, N_point] 的形状
+        self.instance_ignore = instance_ignore  # 没用到, mask 在 get_target 中构建成了 [N_ins, N_point] 的形状
         self.semantic_background = semantic_background
         self.class_names = None  # update in before train
-        self.overlaps = np.append(np.arange(0.5, 0.95, 0.05), 0.25) # ins seg 常用 IoU 阈值
+        self.overlaps = np.append(
+            np.arange(0.5, 0.95, 0.05), 0.25
+        )  # ins seg 常用 IoU 阈值
 
     def before_train(self):
         self.class_names = self.trainer.cfg.data.names
         self.params = {
-            'overlaps': self.overlaps,
-            'valid_class_tags': [i for i in range(len(self.class_names))
-                                 if i not in (self.semantic_ignore,)]
+            "overlaps": self.overlaps,
+            "valid_class_tags": [
+                i
+                for i in range(len(self.class_names))
+                if i not in (self.semantic_ignore,)
+            ],
         }
 
     def after_epoch(self):
@@ -88,8 +95,11 @@ class ISegEvaluator(HookBase):
                 "Loss {loss:.4f} "
                 "mIoU {masks_iou:.4f} "
                 "cls_precision {cls_precision:.4f}".format(
-                    iter=i + 1, max_iter=len(self.trainer.val_loader), 
-                    loss=loss.item(), masks_iou=masks_iou.item(), cls_precision=cls_precision.item()
+                    iter=i + 1,
+                    max_iter=len(self.trainer.val_loader),
+                    loss=loss.item(),
+                    masks_iou=masks_iou.item(),
+                    cls_precision=cls_precision.item(),
                 )
             )
 
@@ -130,12 +140,16 @@ class ISegEvaluator(HookBase):
         loss_avg = self.trainer.storage.history("val_loss").avg
         masks_iou = self.trainer.storage.history("val_masks_iou").avg
         cls_precision = self.trainer.storage.history("val_cls_precision").avg
-        self.trainer.logger.info(f"Val: Loss {loss_avg:.4f} masks_iou {masks_iou:.4f} cls_precision {cls_precision:.4f}")
+        self.trainer.logger.info(
+            f"Val: Loss {loss_avg:.4f} masks_iou {masks_iou:.4f} cls_precision {cls_precision:.4f}"
+        )
         current_epoch = self.trainer.epoch + 1
         if self.trainer.writer is not None:
             self.trainer.writer.add_scalar("val/loss", loss_avg, current_epoch)
             self.trainer.writer.add_scalar("val/masks_iou", masks_iou, current_epoch)
-            self.trainer.writer.add_scalar("val/cls_precision", cls_precision, current_epoch)
+            self.trainer.writer.add_scalar(
+                "val/cls_precision", cls_precision, current_epoch
+            )
         self.trainer.logger.info("<<<<<<<<<<<<<<<<< End Evaluation <<<<<<<<<<<<<<<<<")
         self.trainer.comm_info["current_metric_value"] = masks_iou  # save for saver
         self.trainer.comm_info["current_metric_name"] = "masks_iou"  # save for saver
@@ -143,5 +157,6 @@ class ISegEvaluator(HookBase):
     def after_train(self):
         # self.trainer.logger.info("Best {}: {:.4f}".format(
         #     "AP50", self.trainer.best_metric_value))
-        self.trainer.logger.info("Best {}: {:.4f}".format(
-            "masks_iou", self.trainer.best_metric_value))
+        self.trainer.logger.info(
+            "Best {}: {:.4f}".format("masks_iou", self.trainer.best_metric_value)
+        )

@@ -8,16 +8,33 @@ empty_cache = False
 enable_amp = True
 
 num_classes = 20
-class_names = ["wall", "floor", "cabinet", "bed", "chair", "sofa", "table",
-           "door", "window", "bookshelf", "picture", "counter", "desk", 
-           "curtain", "refridgerator", "shower curtain", "toilet", 
-           "sink", "bathtub", "otherfurniture"]
+class_names = [
+    "wall",
+    "floor",
+    "cabinet",
+    "bed",
+    "chair",
+    "sofa",
+    "table",
+    "door",
+    "window",
+    "bookshelf",
+    "picture",
+    "counter",
+    "desk",
+    "curtain",
+    "refridgerator",
+    "shower curtain",
+    "toilet",
+    "sink",
+    "bathtub",
+    "otherfurniture",
+]
 semantic_ignore = -1
 instance_ignore = -1
 semantic_background = (0, 1)
 matcher_cfg = dict(
-    cost_class=2.0, cost_focal=5.0, cost_dice=2.0,
-    instance_ignore=instance_ignore
+    cost_class=2.0, cost_focal=5.0, cost_dice=2.0, instance_ignore=instance_ignore
 )
 # 数据集相关, max_num_instance <= num_query <=topk_per_scene <= num_query * num_classes
 # model settings
@@ -26,9 +43,27 @@ model = dict(
     pcd_backbone=dict(
         type="SpUNet-v1m1-fpn",
         in_channels=6,
-        num_classes=0,       # 0 表示不映射到 num_classes
-        channels=(32, 64, 128, 256, 256, 128, 96, 96),  # 每一个stage后的channel数, 一半为enc stage
-        layers=(2, 3, 4, 6, 2, 2, 2, 2),                # 每个stage的BasicBlock数, BasicBlock不改变分辨率
+        num_classes=0,  # 0 表示不映射到 num_classes
+        channels=(
+            32,
+            64,
+            128,
+            256,
+            256,
+            128,
+            96,
+            96,
+        ),  # 每一个stage后的channel数, 一半为enc stage
+        layers=(
+            2,
+            3,
+            4,
+            6,
+            2,
+            2,
+            2,
+            2,
+        ),  # 每个stage的BasicBlock数, BasicBlock不改变分辨率
     ),
     mask_decoder=dict(
         type="Mask3dMaskDecoder",
@@ -38,44 +73,55 @@ model = dict(
             num_heads=8,
             mlp_dim=1024,
             activation="relu",
-            attn_drop=0., layer_drop=0.,
-            norm_before=False
+            attn_drop=0.0,
+            layer_drop=0.0,
+            norm_before=False,
         ),
         num_classes=num_classes,
-        attn_mask_types=['float', 'bool', 'bool', 'bool', 'bool'],
+        attn_mask_types=["float", "bool", "bool", "bool", "bool"],
         enable_final_block=True,
-        num_decoders=3, shared_decoder=True,
+        num_decoders=3,
+        shared_decoder=True,
         mask_num=1,
     ),
     loss=dict(
         type="InsSegLoss",
-        cls_loss_cfg = [dict(
-            type="CrossEntropyLoss",
-            loss_weight=1.0,
-            reduction='mean',
-            ignore_index=semantic_ignore
-        )],
-        mask_loss_cfg = [
+        cls_loss_cfg=[
+            dict(
+                type="CrossEntropyLoss",
+                loss_weight=1.0,
+                reduction="mean",
+                ignore_index=semantic_ignore,
+            )
+        ],
+        mask_loss_cfg=[
             dict(
                 type="BinaryCrossEntropyLoss",
-                reduction='mean',
+                reduction="mean",
                 logits=True,
-                loss_weight=5.0),
+                loss_weight=5.0,
+            ),
             dict(
                 type="BinaryDiceLoss",
                 exponent=1,
-                reduction='mean',
+                reduction="mean",
                 logits=True,
-                loss_weight=2.0)
+                loss_weight=2.0,
+            ),
         ],
     ),
-    fused_backbone=False, on_segment=False,
-    matcher_cfg=matcher_cfg, aux=True,
+    fused_backbone=False,
+    on_segment=False,
+    matcher_cfg=matcher_cfg,
+    aux=True,
     features_dims=(256, 256, 128, 96, 96),
-    num_query=100, query_type="learn",
-    mask_threshold=0.5, topk_per_scene=200,
-    semantic_ignore=semantic_ignore, instance_ignore=instance_ignore, 
-    semantic_background=semantic_background
+    num_query=100,
+    query_type="learn",
+    mask_threshold=0.5,
+    topk_per_scene=200,
+    semantic_ignore=semantic_ignore,
+    instance_ignore=instance_ignore,
+    semantic_background=semantic_background,
 )
 
 # hook
@@ -83,12 +129,14 @@ hooks = [
     dict(type="CheckpointLoader"),
     dict(type="IterationTimer", warmup_iter=2),
     dict(type="InformationWriter"),
-    dict(type="ISegEvaluator",
+    dict(
+        type="ISegEvaluator",
         semantic_ignore=semantic_ignore,
         instance_ignore=instance_ignore,
-        semantic_background=semantic_background),
+        semantic_background=semantic_background,
+    ),
     dict(type="CheckpointSaver", save_freq=None),
-    dict(type="PreciseEvaluator", test_last=False)
+    dict(type="PreciseEvaluator", test_last=False),
 ]
 
 train = dict(type="InsSegTrainer")
@@ -96,9 +144,9 @@ test = dict(type="InsSegTester")
 
 # scheduler settings
 evaluate = True
-epoch = 600         # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
+epoch = 600  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
 eval_epoch = 100
-optimizer = dict(type="AdamW", lr=0.0006, weight_decay=0.0001)    # lr: 6e-4
+optimizer = dict(type="AdamW", lr=0.0006, weight_decay=0.0001)  # lr: 6e-4
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
@@ -124,7 +172,9 @@ data = dict(
         data_root=data_root,
         transform=[
             dict(type="CenterShift", apply_z=True),
-            dict(type="RandomDropout", dropout_ratio=0.2, dropout_application_ratio=0.2),
+            dict(
+                type="RandomDropout", dropout_ratio=0.2, dropout_application_ratio=0.2
+            ),
             # dict(type="RandomRotateTargetAngle", angle=(1/2, 1, 3/2), center=[0, 0, 0], axis="z", p=0.75),
             dict(type="RandomRotate", angle=[-1, 1], axis="z", center=[0, 0, 0], p=0.5),
             dict(type="RandomRotate", angle=[-1 / 64, 1 / 64], axis="x", p=0.5),
@@ -153,9 +203,9 @@ data = dict(
             # dict(type="ShufflePoint"),
             # 这里训练时将 semantic_background 纳入训练？
             dict(
-                type="InstanceParser", 
-                segment_ignore_index=(semantic_ignore, *semantic_background), 
-                instance_ignore_index=instance_ignore
+                type="InstanceParser",
+                segment_ignore_index=(semantic_ignore, *semantic_background),
+                instance_ignore_index=instance_ignore,
             ),
             dict(type="ToTensor"),
             dict(
@@ -183,9 +233,9 @@ data = dict(
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
             dict(
-                type="InstanceParser", 
-                segment_ignore_index=(semantic_ignore, *semantic_background), 
-                instance_ignore_index=instance_ignore
+                type="InstanceParser",
+                segment_ignore_index=(semantic_ignore, *semantic_background),
+                instance_ignore_index=instance_ignore,
             ),
             dict(type="ToTensor"),
             dict(
@@ -219,9 +269,9 @@ data = dict(
             post_transform=[
                 dict(type="CenterShift", apply_z=False),
                 dict(
-                    type="InstanceParser", 
-                    segment_ignore_index=(semantic_ignore, *semantic_background), 
-                    instance_ignore_index=instance_ignore
+                    type="InstanceParser",
+                    segment_ignore_index=(semantic_ignore, *semantic_background),
+                    instance_ignore_index=instance_ignore,
                 ),
                 dict(type="ToTensor"),
                 dict(

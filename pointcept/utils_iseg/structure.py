@@ -12,6 +12,7 @@ class Query(Dict):
     - pe: positional encoding, N_query x embedding_dim
     - batch: (N_query,)
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

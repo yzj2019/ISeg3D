@@ -14,10 +14,11 @@ from .utils import ResizeLongestSide
 
 @MODELS.register_module("SAM-HQ")
 class SegmentAnythingHQ(nn.Module):
-    '''
+    """
     segment anything in high quality
     - 模型自行load ckpt，并且冻住所有参数
-    '''
+    """
+
     def __init__(self, model_type="vit_h", ckpt_path=None, criteria=None):
         super().__init__()
         assert ckpt_path != None
@@ -34,9 +35,9 @@ class SegmentAnythingHQ(nn.Module):
 
     @staticmethod
     def get_sam(image, mask_generator):
-        '''
+        """
         获取所有class无关的mask, 构成一张 label map
-        '''
+        """
         masks = mask_generator.generate(image)
         group_ids = np.full((image.shape[0], image.shape[1]), -1, dtype=int)
         num_masks = len(masks)
@@ -48,14 +49,14 @@ class SegmentAnythingHQ(nn.Module):
         return group_ids
 
     def encode(self, image: np.ndarray, image_format: str = "RGB"):
-        '''输入一个 RGB image (H,W,C), 返回用SAM encode 的编码
+        """输入一个 RGB image (H,W,C), 返回用SAM encode 的编码
         - SAM这里的feature是per-grid的
-        
+
         input:
         - image (np.ndarray): The image for calculating masks. Expects an
             image in HWC uint8 format, with pixel values in [0, 255].
         - image_format (str): The color format of the image, in ['RGB', 'BGR'].
-        '''
+        """
         assert image_format in [
             "RGB",
             "BGR",
@@ -65,11 +66,13 @@ class SegmentAnythingHQ(nn.Module):
         # Transform the image to the form expected by the model
         input_image = self.transform.apply_image(image)
         input_image_torch = torch.as_tensor(input_image, device=self.sam.device)
-        input_image_torch = input_image_torch.permute(2, 0, 1).contiguous()[None, :, :, :]
+        input_image_torch = input_image_torch.permute(2, 0, 1).contiguous()[
+            None, :, :, :
+        ]
         # 此时已经转换成了 1,3,H_new,W_new 形状的
         self.original_size = image.shape[:2]
         return self.__encode_torch_image(input_image_torch)
-    
+
     def __encode_torch_image(self, transformed_image: torch.Tensor):
         """
         Calculates the image embeddings for the provided image, allowing
@@ -90,16 +93,18 @@ class SegmentAnythingHQ(nn.Module):
         features, _ = self.sam.image_encoder(input_image)
         # TODO 将decoder里做的upscaling写进来, 方便按pixel选embedding
         return features
-    
+
     def transform_coords(self, coords: np.ndarray):
-        '''将(N,2)形状的pixel坐标, 转化为reshape后的坐标, 对应feature map的位置'''
+        """将(N,2)形状的pixel坐标, 转化为reshape后的坐标, 对应feature map的位置"""
         return self.transform.apply_coords(coords, self.original_size)
 
     def forward(self, input_dict):
-        '''输入一整个scene的image_dict, 输出附带上预测的结果'''
+        """输入一整个scene的image_dict, 输出附带上预测的结果"""
         input_dict["cls_agonistic_seg"] = []
         for i in range(len(input_dict["img_list"])):
-            input_dict["cls_agonistic_seg"].append(self.get_sam(input_dict["img_list"][i]))
+            input_dict["cls_agonistic_seg"].append(
+                self.get_sam(input_dict["img_list"][i])
+            )
         return input_dict
 
 

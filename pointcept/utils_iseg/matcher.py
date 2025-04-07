@@ -1,18 +1,18 @@
-'''
+"""
 matcher, modified from mask3d, detr, 3detr
 https://github.com/JonasSchult/Mask3D/blob/main/models/matcher.py
 https://github.com/facebookresearch/detr/blob/master/models/matcher.py
 
 Author: Zijian Yu (https://github.com/yzj2019)
 Please cite our work if the code is helpful to you.
-'''
+"""
+
 import torch
 from torch import nn
 import torch.nn.functional as F
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from torch.cuda.amp import autocast
-
 
 
 def sigmoid_dice_loss(inputs: torch.Tensor, targets: torch.Tensor):
@@ -27,8 +27,10 @@ def sigmoid_dice_loss(inputs: torch.Tensor, targets: torch.Tensor):
                 (0 for the negative class and 1 for the positive class).
     """
     inputs = inputs.sigmoid()
-    numerator = 2 * torch.einsum("nc,mc->nm", inputs, targets)              # 两两的相交的面积
-    denominator = inputs.sum(-1)[:, None] + targets.sum(-1)[None, :]        # 广播, 两两的面积和
+    numerator = 2 * torch.einsum("nc,mc->nm", inputs, targets)  # 两两的相交的面积
+    denominator = (
+        inputs.sum(-1)[:, None] + targets.sum(-1)[None, :]
+    )  # 广播, 两两的面积和
     loss = 1 - (numerator + 1) / (denominator + 1)
     return loss
 
@@ -36,7 +38,6 @@ def sigmoid_dice_loss(inputs: torch.Tensor, targets: torch.Tensor):
 sigmoid_dice_loss_jit = torch.jit.script(
     sigmoid_dice_loss
 )  # type: torch.jit.ScriptModule
-
 
 
 def sigmoid_ce_loss(inputs: torch.Tensor, targets: torch.Tensor):
@@ -66,10 +67,7 @@ def sigmoid_ce_loss(inputs: torch.Tensor, targets: torch.Tensor):
     return loss / hw
 
 
-sigmoid_ce_loss_jit = torch.jit.script(
-    sigmoid_ce_loss
-)  # type: torch.jit.ScriptModule
-
+sigmoid_ce_loss_jit = torch.jit.script(sigmoid_ce_loss)  # type: torch.jit.ScriptModule
 
 
 # linear_sum_assignment using costmap
@@ -80,15 +78,17 @@ class HungarianMatcher(nn.Module):
     there are more predictions than targets. In this case, we do a 1-to-1 matching of the best predictions,
     while the others are un-matched (and thus treated as non-objects).
     """
-    def __init__(self,
+
+    def __init__(
+        self,
         cost_class: float = 1.0,
         cost_focal: float = 1.0,
         cost_dice: float = 1.0,
-        instance_ignore: int = -1
+        instance_ignore: int = -1,
     ):
-        '''
+        """
         for matching pred instances and gt instances
-        '''
+        """
         super().__init__()
         self.cost_class = cost_class
         self.cost_focal = cost_focal
@@ -98,7 +98,6 @@ class HungarianMatcher(nn.Module):
         assert (
             cost_class != 0 or cost_focal != 0 or cost_dice != 0
         ), "all costs cannot be 0"
-            
 
     @torch.no_grad()
     def forward(self, pred, target):
@@ -123,7 +122,7 @@ class HungarianMatcher(nn.Module):
         Q = pred["cls_prob"].shape[0]
         out_prob = pred["cls_prob"]
         tgt_ids = target["cls"].clone().long()
-        
+
         # Compute the classification cost
         filter_ignore = tgt_ids == self.instance_ignore
         tgt_ids[filter_ignore] = 0
@@ -137,26 +136,31 @@ class HungarianMatcher(nn.Module):
             tgt_mask = tgt_mask.float()
             cost_focal = sigmoid_ce_loss_jit(out_mask, tgt_mask)
             cost_dice = sigmoid_dice_loss_jit(out_mask, tgt_mask)
-        
+
         # Final cost matrix
         C = (
             self.cost_focal * cost_focal
             + self.cost_class * cost_class
             + self.cost_dice * cost_dice
         )
-        C = C.reshape(Q, P).cpu().numpy()      # [Q, P]
+        C = C.reshape(Q, P).cpu().numpy()  # [Q, P]
         # Add large cost to prevent cross-batch matching, with torch broadcasting
-        batch_not_match = (pred["batch"].unsqueeze(1) != target["batch"].unsqueeze(0))  # [Q, P]
+        batch_not_match = pred["batch"].unsqueeze(1) != target["batch"].unsqueeze(
+            0
+        )  # [Q, P]
         batch_cost = batch_not_match.float().cpu().numpy() * 1e6
         C = C + batch_cost
 
         # binary matching
         idx_pred, idx_target = linear_sum_assignment(C)
-        idx_pred = torch.as_tensor(idx_pred, dtype=torch.int64, device=pred["cls_prob"].device)
-        idx_target = torch.as_tensor(idx_target, dtype=torch.int64, device=pred["cls_prob"].device)
+        idx_pred = torch.as_tensor(
+            idx_pred, dtype=torch.int64, device=pred["cls_prob"].device
+        )
+        idx_target = torch.as_tensor(
+            idx_target, dtype=torch.int64, device=pred["cls_prob"].device
+        )
 
         return idx_pred, idx_target
-
 
     def __repr__(self, _repr_indent=4):
         head = "Matcher " + self.__class__.__name__
@@ -169,54 +173,55 @@ class HungarianMatcher(nn.Module):
         return "\n".join(lines)
 
 
-
 if __name__ == "__main__":
     # 创建匹配器实例
     matcher = HungarianMatcher(cost_class=1.0, cost_focal=1.0, cost_dice=1.0)
-    
+
     # 模拟批次数据
     N = 1000  # 点云中的点数
-    Q = 4     # 预测的实例数
-    P = 3     # 真实的实例数
+    Q = 4  # 预测的实例数
+    P = 3  # 真实的实例数
     num_classes = 5  # 类别数
-    
+
     # 创建有意义的预测和目标mask（每个实例占据不同的点集）
     # 创建预测数据
     pred_masks = torch.zeros(Q, N)  # 注意这里维度顺序改为 [Q, N]
     segment_size = N // Q
     for q in range(Q):
         start_idx = q * segment_size
-        end_idx = (q + 1) * segment_size if q < Q-1 else N
-        pred_masks[q, start_idx:end_idx] = torch.rand(end_idx-start_idx) * 0.5 + 0.5  # 使值更可能大于0.5
-    
+        end_idx = (q + 1) * segment_size if q < Q - 1 else N
+        pred_masks[q, start_idx:end_idx] = (
+            torch.rand(end_idx - start_idx) * 0.5 + 0.5
+        )  # 使值更可能大于0.5
+
     # 创建目标数据 - 稍微偏移以创建不同的匹配效果
     tgt_masks = torch.zeros(P, N)  # 注意这里维度顺序改为 [P, N]
     segment_size = N // P
     for p in range(P):
         start_idx = p * segment_size
-        end_idx = (p + 1) * segment_size if p < P-1 else N
+        end_idx = (p + 1) * segment_size if p < P - 1 else N
         tgt_masks[p, start_idx:end_idx] = 1.0  # 目标mask是二进制的
-    
+
     pred = {
         "cls_prob": torch.randn(Q, num_classes).softmax(dim=-1),  # 类别预测概率
-        "masks_heatmap": pred_masks,              # 预测的mask热力图
-        "batch": torch.tensor([0, 0, 1, 1])       # 两个批次的数据
+        "masks_heatmap": pred_masks,  # 预测的mask热力图
+        "batch": torch.tensor([0, 0, 1, 1]),  # 两个批次的数据
     }
-    
+
     target = {
-        "cls": torch.tensor([1, 2, 3]),         # 目标类别，键名从"labels"改为"cls"
-        "masks": tgt_masks,                     # 目标mask
-        "batch": torch.tensor([0, 0, 1])        # 对应的批次
+        "cls": torch.tensor([1, 2, 3]),  # 目标类别，键名从"labels"改为"cls"
+        "masks": tgt_masks,  # 目标mask
+        "batch": torch.tensor([0, 0, 1]),  # 对应的批次
     }
-    
+
     # 运行匹配器 - 移除了多余的batch参数
     idx_pred, idx_target = matcher(pred, target)
-    
+
     # 打印结果
     print("匹配结果：")
     print(f"预测索引: {idx_pred}")
     print(f"目标索引: {idx_target}")
-    
+
     # 验证匹配结果
     # 计算所有预测和目标之间的 mask IoU
     def compute_mask_iou(pred_masks, target_masks):
@@ -230,15 +235,15 @@ if __name__ == "__main__":
         # 将mask转换为布尔值
         pred_masks = pred_masks > 0.5  # [Q, N]
         target_masks = target_masks > 0.5  # [P, N]
-        
+
         # 计算交集
         intersection = pred_masks.float() @ target_masks.T.float()  # [Q, P]
-        
+
         # 计算并集
         pred_areas = pred_masks.sum(dim=1).view(-1, 1)  # [Q, 1]
         target_areas = target_masks.sum(dim=1).view(1, -1)  # [1, P]
         union = pred_areas + target_areas - intersection  # [Q, P]
-        
+
         # 计算IoU
         iou_matrix = intersection / (union + 1e-6)  # 添加小值避免除零
         return iou_matrix
@@ -246,4 +251,3 @@ if __name__ == "__main__":
     # 计算mask IoU矩阵
     mask_iou = compute_mask_iou(pred["masks_heatmap"], target["masks"])
     print(f"所有预测和目标之间的 mask IoU: \n{mask_iou}")
-        

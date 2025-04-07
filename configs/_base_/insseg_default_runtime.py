@@ -31,11 +31,13 @@ hooks = [
     dict(type="CheckpointLoader"),
     dict(type="IterationTimer", warmup_iter=2),
     dict(type="InformationWriter"),
-    dict(type="InsSegEvaluator",
+    dict(
+        type="InsSegEvaluator",
         segment_ignore_index=semantic_ignore_label,
-        instance_ignore_index=instance_ignore_label,),
+        instance_ignore_index=instance_ignore_label,
+    ),
     dict(type="CheckpointSaver", save_freq=None),
-    dict(type="PreciseEvaluator", test_last=False)
+    dict(type="PreciseEvaluator", test_last=False),
 ]
 
 # Trainer

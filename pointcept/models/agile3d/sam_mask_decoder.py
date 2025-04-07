@@ -29,8 +29,9 @@ class Attention(nn.Module):
 
     An attention layer that allows for downscaling the size of the embedding
     after projection to queries, keys, and values.
-    - 
+    -
     """
+
     def __init__(
         self,
         embedding_dim: int,
@@ -41,7 +42,9 @@ class Attention(nn.Module):
         self.embedding_dim = embedding_dim
         self.internal_dim = embedding_dim // downsample_rate
         self.num_heads = num_heads
-        assert self.internal_dim % num_heads == 0, "num_heads must divide embedding_dim."
+        assert (
+            self.internal_dim % num_heads == 0
+        ), "num_heads must divide embedding_dim."
 
         self.q_proj = nn.Linear(embedding_dim, self.internal_dim)
         self.k_proj = nn.Linear(embedding_dim, self.internal_dim)
@@ -76,7 +79,7 @@ class Attention(nn.Module):
         attn = torch.softmax(attn, dim=-1)
 
         # Get output
-        out = attn @ v      # B x N_heads x N_tokens x C_per_head
+        out = attn @ v  # B x N_heads x N_tokens x C_per_head
         out = self._recombine_heads(out)
         out = self.out_proj(out)
 
@@ -98,7 +101,9 @@ class SelfAttentionLayer(nn.Module):
         normalize_before=False,
     ):
         super().__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        self.self_attn = nn.MultiheadAttention(
+            d_model, nhead, dropout=dropout, batch_first=True
+        )
 
         self.norm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
@@ -149,16 +154,10 @@ class SelfAttentionLayer(nn.Module):
 
         return tgt
 
-    def forward(
-        self, tgt, tgt_mask=None, tgt_key_padding_mask=None, query_pos=None
-    ):
+    def forward(self, tgt, tgt_mask=None, tgt_key_padding_mask=None, query_pos=None):
         if self.normalize_before:
-            return self.forward_pre(
-                tgt, tgt_mask, tgt_key_padding_mask, query_pos
-            )
-        return self.forward_post(
-            tgt, tgt_mask, tgt_key_padding_mask, query_pos
-        )
+            return self.forward_pre(tgt, tgt_mask, tgt_key_padding_mask, query_pos)
+        return self.forward_post(tgt, tgt_mask, tgt_key_padding_mask, query_pos)
 
 
 class CrossAttentionLayer(nn.Module):
@@ -171,9 +170,7 @@ class CrossAttentionLayer(nn.Module):
         normalize_before=False,
     ):
         super().__init__()
-        self.multihead_attn = nn.MultiheadAttention(
-            d_model, nhead, dropout=dropout
-        )
+        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
 
         self.norm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
@@ -270,7 +267,9 @@ class TwoWayTransformerBlock(nn.Module):
         activation: Type[nn.Module] = nn.ReLU,
         attention_downsample_rate: int = 2,
         skip_first_layer_pe: bool = False,
-        dropout_list = [0.,]
+        dropout_list=[
+            0.0,
+        ],
     ) -> None:
         """
         A transformer block with four layers: (1) self-attention of sparse
@@ -288,7 +287,9 @@ class TwoWayTransformerBlock(nn.Module):
         """
         super().__init__()
         self.self_attn = Attention(embedding_dim, num_heads)
-        self.norm1 = nn.LayerNorm(embedding_dim)                # 可合并成 attention.py 里的 SelfAttentionLayer
+        self.norm1 = nn.LayerNorm(
+            embedding_dim
+        )  # 可合并成 attention.py 里的 SelfAttentionLayer
 
         self.cross_attn_token_to_image = Attention(
             embedding_dim, num_heads, downsample_rate=attention_downsample_rate
@@ -432,9 +433,9 @@ class TwoWayTransformerDecoder(nn.Module):
         return queries, keys
 
 
-# 
+#
 # mask decoder
-# 
+#
 class MaskDecoder(nn.Module):
     def __init__(
         self,
@@ -473,10 +474,14 @@ class MaskDecoder(nn.Module):
         self.mask_tokens = nn.Embedding(self.num_mask_tokens, transformer_dim)
 
         self.output_upscaling = nn.Sequential(
-            nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
+            nn.ConvTranspose2d(
+                transformer_dim, transformer_dim // 4, kernel_size=2, stride=2
+            ),
             LayerNorm2d(transformer_dim // 4),
             activation(),
-            nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+            nn.ConvTranspose2d(
+                transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2
+            ),
             activation(),
         )
         self.output_hypernetworks_mlps = nn.ModuleList(
@@ -542,8 +547,12 @@ class MaskDecoder(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Predicts masks. See 'forward' for more details."""
         # Concatenate output tokens
-        output_tokens = torch.cat([self.iou_token.weight, self.mask_tokens.weight], dim=0)
-        output_tokens = output_tokens.unsqueeze(0).expand(sparse_prompt_embeddings.size(0), -1, -1)
+        output_tokens = torch.cat(
+            [self.iou_token.weight, self.mask_tokens.weight], dim=0
+        )
+        output_tokens = output_tokens.unsqueeze(0).expand(
+            sparse_prompt_embeddings.size(0), -1, -1
+        )
         tokens = torch.cat((output_tokens, sparse_prompt_embeddings), dim=1)
 
         # Expand per-image data in batch direction to be per-mask
@@ -562,7 +571,9 @@ class MaskDecoder(nn.Module):
         upscaled_embedding = self.output_upscaling(src)
         hyper_in_list: List[torch.Tensor] = []
         for i in range(self.num_mask_tokens):
-            hyper_in_list.append(self.output_hypernetworks_mlps[i](mask_tokens_out[:, i, :]))
+            hyper_in_list.append(
+                self.output_hypernetworks_mlps[i](mask_tokens_out[:, i, :])
+            )
         hyper_in = torch.stack(hyper_in_list, dim=1)
         b, c, h, w = upscaled_embedding.shape
         masks = (hyper_in @ upscaled_embedding.view(b, c, h * w)).view(b, -1, h, w)
@@ -612,10 +623,14 @@ class MaskDecoderHQ(nn.Module):
         self.mask_tokens = nn.Embedding(self.num_mask_tokens, transformer_dim)
 
         self.output_upscaling = nn.Sequential(
-            nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
+            nn.ConvTranspose2d(
+                transformer_dim, transformer_dim // 4, kernel_size=2, stride=2
+            ),
             LayerNorm2d(transformer_dim // 4),
             activation(),
-            nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
+            nn.ConvTranspose2d(
+                transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2
+            ),
             activation(),
         )
         self.output_hypernetworks_mlps = nn.ModuleList(
@@ -630,30 +645,38 @@ class MaskDecoderHQ(nn.Module):
         )
 
         # HQ-SAM parameters
-        self.hf_token = nn.Embedding(1, transformer_dim) # HQ-Ouptput-Token
-        self.hf_mlp = MLP(transformer_dim, transformer_dim, transformer_dim // 8, 3) # corresponding new MLP layer for HQ-Ouptput-Token
+        self.hf_token = nn.Embedding(1, transformer_dim)  # HQ-Ouptput-Token
+        self.hf_mlp = MLP(
+            transformer_dim, transformer_dim, transformer_dim // 8, 3
+        )  # corresponding new MLP layer for HQ-Ouptput-Token
         self.num_mask_tokens = self.num_mask_tokens + 1
-        
+
         # three conv fusion layers for obtaining HQ-Feature
         self.compress_vit_feat = nn.Sequential(
-                                        nn.ConvTranspose2d(vit_dim, transformer_dim, kernel_size=2, stride=2),
-                                        LayerNorm2d(transformer_dim),
-                                        nn.GELU(), 
-                                        nn.ConvTranspose2d(transformer_dim, transformer_dim // 8, kernel_size=2, stride=2))
-        
+            nn.ConvTranspose2d(vit_dim, transformer_dim, kernel_size=2, stride=2),
+            LayerNorm2d(transformer_dim),
+            nn.GELU(),
+            nn.ConvTranspose2d(
+                transformer_dim, transformer_dim // 8, kernel_size=2, stride=2
+            ),
+        )
+
         self.embedding_encoder = nn.Sequential(
-                                        nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
-                                        LayerNorm2d(transformer_dim // 4),
-                                        nn.GELU(),
-                                        nn.ConvTranspose2d(transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2),
-                                    )
+            nn.ConvTranspose2d(
+                transformer_dim, transformer_dim // 4, kernel_size=2, stride=2
+            ),
+            LayerNorm2d(transformer_dim // 4),
+            nn.GELU(),
+            nn.ConvTranspose2d(
+                transformer_dim // 4, transformer_dim // 8, kernel_size=2, stride=2
+            ),
+        )
         self.embedding_maskfeature = nn.Sequential(
-                                        nn.Conv2d(transformer_dim // 8, transformer_dim // 4, 3, 1, 1), 
-                                        LayerNorm2d(transformer_dim // 4),
-                                        nn.GELU(),
-                                        nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
-
-
+            nn.Conv2d(transformer_dim // 8, transformer_dim // 4, 3, 1, 1),
+            LayerNorm2d(transformer_dim // 4),
+            nn.GELU(),
+            nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1),
+        )
 
     def forward(
         self,
@@ -680,8 +703,12 @@ class MaskDecoderHQ(nn.Module):
           torch.Tensor: batched predicted masks
           torch.Tensor: batched predictions of mask quality
         """
-        vit_features = interm_embeddings[0].permute(0, 3, 1, 2) # early-layer ViT feature, after 1st global attention block in ViT
-        hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(vit_features)
+        vit_features = interm_embeddings[0].permute(
+            0, 3, 1, 2
+        )  # early-layer ViT feature, after 1st global attention block in ViT
+        hq_features = self.embedding_encoder(image_embeddings) + self.compress_vit_feat(
+            vit_features
+        )
 
         masks, iou_pred = self.predict_masks(
             image_embeddings=image_embeddings,
@@ -694,19 +721,21 @@ class MaskDecoderHQ(nn.Module):
         # Select the correct mask or masks for output
         if multimask_output:
             # mask with highest score
-            mask_slice = slice(1,self.num_mask_tokens-1)
+            mask_slice = slice(1, self.num_mask_tokens - 1)
             iou_pred = iou_pred[:, mask_slice]
-            iou_pred, max_iou_idx = torch.max(iou_pred,dim=1)
+            iou_pred, max_iou_idx = torch.max(iou_pred, dim=1)
             iou_pred = iou_pred.unsqueeze(1)
             masks_multi = masks[:, mask_slice, :, :]
-            masks_sam = masks_multi[torch.arange(masks_multi.size(0)),max_iou_idx].unsqueeze(1)
+            masks_sam = masks_multi[
+                torch.arange(masks_multi.size(0)), max_iou_idx
+            ].unsqueeze(1)
         else:
             # singale mask output, default
             mask_slice = slice(0, 1)
-            iou_pred = iou_pred[:,mask_slice]
-            masks_sam = masks[:,mask_slice]
+            iou_pred = iou_pred[:, mask_slice]
+            masks_sam = masks[:, mask_slice]
 
-        masks_hq = masks[:,slice(self.num_mask_tokens-1, self.num_mask_tokens)]
+        masks_hq = masks[:, slice(self.num_mask_tokens - 1, self.num_mask_tokens)]
         if hq_token_only:
             masks = masks_hq
         else:
@@ -724,8 +753,13 @@ class MaskDecoderHQ(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Predicts masks. See 'forward' for more details."""
         # Concatenate output tokens
-        output_tokens = torch.cat([self.iou_token.weight, self.mask_tokens.weight, self.hf_token.weight], dim=0)
-        output_tokens = output_tokens.unsqueeze(0).expand(sparse_prompt_embeddings.size(0), -1, -1)
+        output_tokens = torch.cat(
+            [self.iou_token.weight, self.mask_tokens.weight, self.hf_token.weight],
+            dim=0,
+        )
+        output_tokens = output_tokens.unsqueeze(0).expand(
+            sparse_prompt_embeddings.size(0), -1, -1
+        )
         tokens = torch.cat((output_tokens, sparse_prompt_embeddings), dim=1)
 
         # Expand per-image data in batch direction to be per-mask
@@ -743,21 +777,31 @@ class MaskDecoderHQ(nn.Module):
         src = src.transpose(1, 2).view(b, c, h, w)
 
         upscaled_embedding_sam = self.output_upscaling(src)
-        upscaled_embedding_hq = self.embedding_maskfeature(upscaled_embedding_sam) + hq_features.repeat(b,1,1,1)
+        upscaled_embedding_hq = self.embedding_maskfeature(
+            upscaled_embedding_sam
+        ) + hq_features.repeat(b, 1, 1, 1)
 
         hyper_in_list: List[torch.Tensor] = []
         for i in range(self.num_mask_tokens):
             if i < self.num_mask_tokens - 1:
-                hyper_in_list.append(self.output_hypernetworks_mlps[i](mask_tokens_out[:, i, :]))
+                hyper_in_list.append(
+                    self.output_hypernetworks_mlps[i](mask_tokens_out[:, i, :])
+                )
             else:
                 hyper_in_list.append(self.hf_mlp(mask_tokens_out[:, i, :]))
 
         hyper_in = torch.stack(hyper_in_list, dim=1)
         b, c, h, w = upscaled_embedding_sam.shape
 
-        masks_sam = (hyper_in[:,:self.num_mask_tokens-1] @ upscaled_embedding_sam.view(b, c, h * w)).view(b, -1, h, w)
-        masks_sam_hq = (hyper_in[:,self.num_mask_tokens-1:] @ upscaled_embedding_hq.view(b, c, h * w)).view(b, -1, h, w)
-        masks = torch.cat([masks_sam,masks_sam_hq],dim=1)
+        masks_sam = (
+            hyper_in[:, : self.num_mask_tokens - 1]
+            @ upscaled_embedding_sam.view(b, c, h * w)
+        ).view(b, -1, h, w)
+        masks_sam_hq = (
+            hyper_in[:, self.num_mask_tokens - 1 :]
+            @ upscaled_embedding_hq.view(b, c, h * w)
+        ).view(b, -1, h, w)
+        masks = torch.cat([masks_sam, masks_sam_hq], dim=1)
         # Generate mask quality predictions
         iou_pred = self.iou_prediction_head(iou_token_out)
 

@@ -1,6 +1,6 @@
-'''
+"""
 杂项
-'''
+"""
 
 import torch
 from torch import nn
@@ -11,12 +11,11 @@ import spconv.pytorch as spconv
 from functools import partial
 
 
-
 def _get_activation_fn(activation):
     """Return an activation function given a string"""
     if activation == "relu":
         return F.relu
-    if activation == 'leakyrelu':
+    if activation == "leakyrelu":
         # 多参数固定其中一部分后使用
         return partial(F.leaky_relu, negative_slope=0.1)
     if activation == "gelu":
@@ -57,14 +56,14 @@ class FFNLayer(nn.Module):
         return tensor if pos is None else tensor + pos
 
     def forward_post(self, tgt):
-        '''normalize_before=False'''
+        """normalize_before=False"""
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm(tgt)
         return tgt
 
     def forward_pre(self, tgt):
-        '''normalize_before=True'''
+        """normalize_before=True"""
         tgt2 = self.norm(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
         tgt = tgt + self.dropout(tgt2)
@@ -74,7 +73,6 @@ class FFNLayer(nn.Module):
         if self.normalize_before:
             return self.forward_pre(x)
         return self.forward_post(x)
-
 
 
 # 简化MLP，同上面的FFN, 略去了 norm、drop
@@ -109,11 +107,11 @@ class LayerNorm2d(nn.Module):
         x = (x - u) / torch.sqrt(s + self.eps)
         x = self.weight[:, None, None] * x + self.bias[:, None, None]
         return x
-    
 
 
 # from 3detr
 # https://github.com/yzj2019/Mask3D/blob/main/models/modules/helpers_3detr.py
+
 
 class BatchNormDim1Swap(nn.BatchNorm1d):
     """
@@ -134,6 +132,7 @@ class BatchNormDim1Swap(nn.BatchNorm1d):
         x = x.permute(2, 0, 1)
         return x
 
+
 NORM_DICT = {
     "bn": BatchNormDim1Swap,
     "bn1d": partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01),
@@ -151,6 +150,7 @@ WEIGHT_INIT_DICT = {
     "xavier_uniform": nn.init.xavier_uniform_,
 }
 
+
 class GenericMLP(nn.Module):
     def __init__(
         self,
@@ -167,7 +167,7 @@ class GenericMLP(nn.Module):
         output_use_norm=False,
         weight_init_name=None,
     ):
-        '''代码易读, 不解释了'''
+        """代码易读, 不解释了"""
         super().__init__()
         activation = ACTIVATION_DICT[activation]
         norm = None
@@ -213,7 +213,7 @@ class GenericMLP(nn.Module):
 
     def do_weight_init(self, weight_init_name):
         func = WEIGHT_INIT_DICT[weight_init_name]
-        for (_, param) in self.named_parameters():
+        for _, param in self.named_parameters():
             if param.dim() > 1:  # skips batchnorm/layernorm
                 func(param)
 

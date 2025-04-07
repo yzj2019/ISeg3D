@@ -22,7 +22,6 @@ class Model(MinkowskiNetwork):
         self.config = config
 
 
-
 class ResNetBase(Model):
     BLOCK = None
     LAYERS = ()

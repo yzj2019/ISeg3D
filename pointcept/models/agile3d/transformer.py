@@ -1,8 +1,8 @@
-'''
+"""
 部分借鉴Meta
 
 transformer layer/block, 以及最基本的 Transformer decoder 示例
-'''
+"""
 
 import torch
 from torch import Tensor, nn
@@ -14,7 +14,6 @@ from typing import Tuple, Type
 from .misc import MLPBlock
 
 from .attention import FlashMHA
-
 
 
 # ------------------------------------------------------------------------
@@ -30,8 +29,9 @@ class FlashTwoWayTransformerBlock(nn.Module):
         activation: Type[nn.Module] = nn.ReLU,
         attention_downsample_rate: int = 2,
         skip_first_layer_pe: bool = False,
-        attn_drop: int = 0.1, layer_drop: int = 0.1,
-        norm_first=False
+        attn_drop: int = 0.1,
+        layer_drop: int = 0.1,
+        norm_first=False,
     ) -> None:
         """
         A transformer block with four layers: (1) self-attention of sparse
@@ -53,10 +53,15 @@ class FlashTwoWayTransformerBlock(nn.Module):
         self.skip_first_layer_pe = skip_first_layer_pe
         self.self_attn = FlashMHA(embedding_dim, num_heads, dropout=attn_drop)
         self.drop1 = nn.Dropout(layer_drop)
-        self.norm1 = nn.LayerNorm(embedding_dim)                # 可合并成 attention.py 里的 SelfAttentionLayer
+        self.norm1 = nn.LayerNorm(
+            embedding_dim
+        )  # 可合并成 attention.py 里的 SelfAttentionLayer
 
         self.cross_attn_token_to_image = FlashMHA(
-            embedding_dim, num_heads, downsample_rate=attention_downsample_rate, dropout=attn_drop
+            embedding_dim,
+            num_heads,
+            downsample_rate=attention_downsample_rate,
+            dropout=attn_drop,
         )
         self.drop2 = nn.Dropout(layer_drop)
         self.norm2 = nn.LayerNorm(embedding_dim)
@@ -64,13 +69,12 @@ class FlashTwoWayTransformerBlock(nn.Module):
         self.mlp = MLPBlock(embedding_dim, mlp_dim, activation)
         self.drop3 = nn.Dropout(layer_drop)
         self.norm3 = nn.LayerNorm(embedding_dim)
-        
+
         self.cross_attn_image_to_token = FlashMHA(
             embedding_dim, num_heads, downsample_rate=attention_downsample_rate
         )
         self.drop4 = nn.Dropout(layer_drop)
         self.norm4 = nn.LayerNorm(embedding_dim)
-
 
     def forward(
         self, queries: Tensor, keys: Tensor, query_pe: Tensor, key_pe: Tensor
@@ -198,4 +202,3 @@ class FlashTwoWayTransformerDecoder(nn.Module):
         queries = self.norm_final_attn(queries)
 
         return queries, keys
-

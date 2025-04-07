@@ -86,9 +86,10 @@ class BasicBlock(spconv.SparseModule):
 
 
 class FeaturePyramid(spconv.SparseModule):
-    '''特征金字塔, 收集不同分辨率的特征图'''
+    """特征金字塔, 收集不同分辨率的特征图"""
+
     def __init__(self):
-        '''只实例化一次, 加在每个 decoder stage 结尾'''
+        """只实例化一次, 加在每个 decoder stage 结尾"""
         super().__init__()
         self.features = []
         self.pooling = spconv.SparseAvgPool3d(kernel_size=2, stride=2)
@@ -101,33 +102,35 @@ class FeaturePyramid(spconv.SparseModule):
     def forward(self, x: spconv.SparseConvTensor):
         self.features.append(x)
         return x
-    
+
     @property
     def resolutions(self):
         return torch.tensor([x.shape for x in self.features])
 
     def feat_list(self):
         return [x.features for x in self.features]
-    
+
     def coord_list(self):
         return [x.indices[:, 1:] for x in self.features]
-    
+
     def batch_list(self):
         return [x.indices[:, 0] for x in self.features]
 
     @torch.no_grad()
     def downsample(self, x: torch.Tensor, from_resolution=0, to_resolution=0):
-        '''
+        """
         将 x 的 dim 0, 按照 indices, 从 from_resolution 分辨率, 下采样到 to_resolution 分辨率
         - from_resolution: int, 源分辨率对应的 features 中的索引
         - to_resolution: int, 目标分辨率对应的 features 中的索引
-        '''
+        """
         num_pooling = from_resolution - to_resolution
         x = spconv.SparseConvTensor(
             features=x.float(),
-            indices=self.features[from_resolution].indices,         # 共享 indices 应该不需要 .clone().detach(), pooling 会创建新的
+            indices=self.features[
+                from_resolution
+            ].indices,  # 共享 indices 应该不需要 .clone().detach(), pooling 会创建新的
             spatial_shape=self.features[from_resolution].spatial_shape,
-            batch_size=self.features[from_resolution].batch_size
+            batch_size=self.features[from_resolution].batch_size,
         )
         for _ in range(num_pooling):
             x = self.pooling(x)
@@ -262,12 +265,16 @@ class SpUNetBase_FPN(nn.Module):
                         )
                     )
                 )
-                self.dec[-1].add_module("feature_pyramid", self.feature_pyramid)  # 加在每个 decoder stage 的最后
+                self.dec[-1].add_module(
+                    "feature_pyramid", self.feature_pyramid
+                )  # 加在每个 decoder stage 的最后
 
             enc_channels = channels[s]
             dec_channels = channels[len(channels) - s - 2]
 
-        self.enc[-1].add_module("feature_pyramid", self.feature_pyramid)  # 加在 encoder 的最后
+        self.enc[-1].add_module(
+            "feature_pyramid", self.feature_pyramid
+        )  # 加在 encoder 的最后
 
         final_in_channels = (
             channels[-1] if not self.cls_mode else channels[self.num_stages - 1]
@@ -301,7 +308,7 @@ class SpUNetBase_FPN(nn.Module):
         offset = input_dict["offset"]
         # 在开始处清空 feature_pyramid
         self.feature_pyramid.reset()
-        
+
         batch = offset2batch(offset)
         sparse_shape = torch.add(torch.max(grid_coord, dim=0).values, 96).tolist()
         x = spconv.SparseConvTensor(
@@ -329,7 +336,9 @@ class SpUNetBase_FPN(nn.Module):
                 x = x.replace_feature(torch.cat((x.features, skip.features), dim=1))
                 x = self.dec[s](x)
 
-        x = self.final(x)               # channels的最后一维, 同样也是特征的维度, 向num_classes的映射, SubMConv3d
+        x = self.final(
+            x
+        )  # channels的最后一维, 同样也是特征的维度, 向num_classes的映射, SubMConv3d
         if self.cls_mode:
             x = x.replace_feature(
                 scatter(x.features, x.indices[:, 0].long(), reduce="mean", dim=0)

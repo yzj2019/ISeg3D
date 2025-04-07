@@ -1,9 +1,9 @@
-'''
+"""
 Instance Segmentation / Interactive Segmentation dataset utils
 
 Author: Zijian Yu (https://github.com/yzj2019)
 Please cite our work if the code is helpful to you.
-'''
+"""
 
 import random
 import torch
@@ -13,7 +13,7 @@ from .utils import collate_fn
 
 
 def collate_fn_iseg(batch, instance_ignore_label=-1):
-    '''instance reid for minibatch'''
+    """instance reid for minibatch"""
     assert isinstance(
         batch[0], Mapping
     )  # currently, only support input_dict, rather than input_list
@@ -33,6 +33,7 @@ def collate_fn_iseg(batch, instance_ignore_label=-1):
 
 # TODO 为了适应那些需要丢弃点的数据增强方法, 直接用 scannet efficient 中的 sampled_index
 
+
 # Sample Clicks after InstanceParser
 @TRANSFORMS.register_module()
 class SampleClick_Random(object):
@@ -41,5 +42,3 @@ class SampleClick_Random(object):
 
     def __call__(self, data_dict):
         pass
-
-
