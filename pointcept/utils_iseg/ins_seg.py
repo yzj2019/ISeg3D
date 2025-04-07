@@ -59,11 +59,12 @@ def id_to_other_id(other, instance, ins_id):
     return other_id
 
 
-def get_pred(pred, batch):
+def get_pred(pred, query):
     """
     - pred: dict, 预测结果
         - 'cls_logits': [N_query, num_classes]
-    - batch: [N_query,]\n
+    - query: query dict
+        - 'batch': [N_query,]
     Returns:
     - pred dict
         - cls_logits: [N_query, num_classes]
@@ -74,14 +75,15 @@ def get_pred(pred, batch):
     """
     cls_prob = pred["cls_logits"].softmax(-1)
     cls = cls_prob.argmax(dim=1)
-    return Dict(cls_prob=cls_prob, cls=cls, batch=batch, **pred)
+    return Dict(cls_prob=cls_prob, cls=cls, batch=query["batch"], **pred)
 
 
-def get_target(semantic, instance, batch, ignore):
+def get_target(scene, ignore):
     """reconstruct the ground truth
-    - semantic: [N_point,]
-    - instance: [N_point,]
-    - batch: [N_point,]
+    - scene: Scene dict
+        - semantic: [N_point,]
+        - instance: [N_point,]
+        - batch_list[-1]: [N_point,]
     - ignore: ignore instance id
 
     Returns:
@@ -92,6 +94,8 @@ def get_target(semantic, instance, batch, ignore):
         - batch: [N_instance,], batch id
         - is_testset: bool, if testing on test set
     """
+    semantic, instance = scene.semantic, scene.instance
+    batch = scene.batch_list[-1]
     ins_id = unique_id(instance, ignore)
     sem_id = torch.zeros_like(ins_id).to(ins_id.device).int()
     batch_id = torch.zeros_like(ins_id).to(ins_id.device).int()

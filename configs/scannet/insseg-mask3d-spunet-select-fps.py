@@ -100,7 +100,7 @@ model = dict(
     aux=True,
     features_dims=(256, 256, 128, 96, 96),
     num_query=100,
-    query_type="learn",
+    query_type="sample",
     mask_threshold=0.5,
     topk_per_scene=200,
     semantic_ignore=semantic_ignore,
@@ -128,16 +128,16 @@ test = dict(type="InsSegTester")
 
 # scheduler settings
 evaluate = True
-epoch = 1200  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
+epoch = 200  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
 eval_epoch = 100
-optimizer = dict(type="AdamW", lr=0.0004, weight_decay=0.0001)
+optimizer = dict(type="AdamW", lr=0.0001, weight_decay=0.0001)
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
-    pct_start=0.5,
+    pct_start=0.3,
     anneal_strategy="cos",
-    div_factor=10.0,
-    final_div_factor=10.0,
+    div_factor=25.0,
+    final_div_factor=100.0,
 )
 # pointcept.utils.optimizer 中会根据 param_dicts 来设置不同的 lr
 # param_dicts = [dict(keyword="block", lr=0.00001)]
@@ -155,6 +155,7 @@ data = dict(
         split="train",
         data_root=data_root,
         transform=[
+            dict(type="Copy", keys_dict={"sampled_idx_fps": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(
                 type="RandomDropout", dropout_ratio=0.2, dropout_application_ratio=0.2
@@ -180,6 +181,7 @@ data = dict(
                 mode="train",
                 return_grid_coord=True,
             ),
+            dict(type="SampledIndex2Mask"),
             dict(type="SphereCrop", point_max=102400, mode="random"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
@@ -193,7 +195,7 @@ data = dict(
             dict(type="ToTensor"),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "segment", "instance"),
+                keys=("coord", "grid_coord", "segment", "instance", "sampled_mask"),
                 feat_keys=("color", "normal"),
             ),
         ],
@@ -204,6 +206,7 @@ data = dict(
         split="val",
         data_root=data_root,
         transform=[
+            dict(type="Copy", keys_dict={"sampled_idx_fps": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(
                 type="GridSample",
@@ -212,6 +215,7 @@ data = dict(
                 mode="train",
                 return_grid_coord=True,
             ),
+            dict(type="SampledIndex2Mask"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
             dict(
@@ -222,7 +226,7 @@ data = dict(
             dict(type="ToTensor"),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "segment", "instance"),
+                keys=("coord", "grid_coord", "segment", "instance", "sampled_mask"),
                 feat_keys=("color", "normal"),
             ),
         ],
@@ -233,6 +237,7 @@ data = dict(
         split="val",
         data_root=data_root,
         transform=[
+            dict(type="Copy", keys_dict={"sampled_idx_fps": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(type="NormalizeColor"),
         ],
@@ -242,12 +247,13 @@ data = dict(
                 type="GridSample",
                 grid_size=0.02,
                 hash_type="fnv",
-                mode="test",
+                mode="train",  # 注意这里改成 train type, 不用那么多重复的 fragment
                 return_grid_coord=True,
                 return_inverse=True,
             ),
             crop=None,
             post_transform=[
+                dict(type="SampledIndex2Mask"),
                 dict(type="CenterShift", apply_z=False),
                 dict(
                     type="InstanceParser",
@@ -257,7 +263,14 @@ data = dict(
                 dict(type="ToTensor"),
                 dict(
                     type="Collect",
-                    keys=("coord", "grid_coord", "index", "segment", "instance"),
+                    keys=(
+                        "coord",
+                        "grid_coord",
+                        "inverse",
+                        "segment",
+                        "instance",
+                        "sampled_mask",
+                    ),
                     feat_keys=("color", "normal"),
                 ),
             ],

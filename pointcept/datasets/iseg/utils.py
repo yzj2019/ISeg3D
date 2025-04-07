@@ -8,8 +8,7 @@ Please cite our work if the code is helpful to you.
 import random
 import torch
 from collections.abc import Mapping
-from .transform import TRANSFORMS
-from .utils import collate_fn
+from ..utils import collate_fn
 
 
 def collate_fn_iseg(batch, instance_ignore_label=-1):
@@ -29,16 +28,3 @@ def collate_fn_iseg(batch, instance_ignore_label=-1):
             batch["instance"][l:r][ignore_mask] += id_max
             id_max = batch["instance"][l:r].max() + 1
     return batch
-
-
-# TODO 为了适应那些需要丢弃点的数据增强方法, 直接用 scannet efficient 中的 sampled_index
-
-
-# Sample Clicks after InstanceParser
-@TRANSFORMS.register_module()
-class SampleClick_Random(object):
-    def __init__(self, sample_rate=0.1):
-        self.sample_rate = sample_rate
-
-    def __call__(self, data_dict):
-        pass

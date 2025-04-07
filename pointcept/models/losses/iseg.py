@@ -114,9 +114,7 @@ class InsSegLoss(nn.Module):
         cls_precision = (cls_pred == cls_target).float().sum() / cls_pred.shape[0]
 
         # 计算每个实例的IoU，先计算每个实例的交集和并集
-        masks_intersection = (masks_pred * masks_target).sum(
-            1
-        )  # 按点求和，在第1维(点维度)求和
+        masks_intersection = (masks_pred * masks_target).sum(1)  # 按点求和，在第1维(点维度)求和
         pred_areas = masks_pred.sum(1)  # N_instances
         target_areas = masks_target.sum(1)  # N_instances
         masks_union = pred_areas + target_areas - masks_intersection  # 正确计算并集

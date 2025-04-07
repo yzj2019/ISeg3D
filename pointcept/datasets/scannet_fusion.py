@@ -151,9 +151,7 @@ class ScanNetImageDataset(Dataset):
                 img_name_list[scene_name] = [
                     os.path.split(x)[-1].split(".")[0] for x in img_path_list
                 ]
-                img_name_list[
-                    scene_name
-                ].sort()  # 有必要排序，因为需要color、depth、label对应起来
+                img_name_list[scene_name].sort()  # 有必要排序，因为需要color、depth、label对应起来
         else:
             raise NotImplementedError
         return img_name_list
@@ -168,9 +166,7 @@ class ScanNetImageDataset(Dataset):
                 image_list[scene_name] = glob.glob(
                     os.path.join(scene, split, "*" + suffix)
                 )
-                image_list[
-                    scene_name
-                ].sort()  # 有必要排序，因为需要color、depth、label对应起来
+                image_list[scene_name].sort()  # 有必要排序，因为需要color、depth、label对应起来
                 img_num.append(len(image_list[scene_name]))
         else:
             raise NotImplementedError
@@ -242,9 +238,7 @@ class ScanNetImageDataset(Dataset):
     def prepare_train_data(self, idx):
         # load data
         data_dict = self.get_data_by_scene(idx)
-        data_dict = self.transform(
-            data_dict
-        )  # build后, 如果transform是None, 就会返回原数据
+        data_dict = self.transform(data_dict)  # build后, 如果transform是None, 就会返回原数据
         return data_dict
 
     def prepare_test_data(self, idx):

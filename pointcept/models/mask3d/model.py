@@ -26,7 +26,7 @@ from pointcept.utils_iseg.ins_seg import (
 )
 
 
-@MODELS.register_module("Mask3dSegmentor-learnable")
+@MODELS.register_module()
 class Mask3dSegmentor(nn.Module):
     def __init__(
         self,
@@ -90,9 +90,7 @@ class Mask3dSegmentor(nn.Module):
 
         # scene
         self.mask_feat_proj = nn.Linear(features_dims[-1], self.embedding_dim)
-        self.scene_norm = nn.LayerNorm(
-            self.embedding_dim
-        )  # 在 in_proj 后加一个 ln, 对齐特征
+        self.scene_norm = nn.LayerNorm(self.embedding_dim)  # 在 in_proj 后加一个 ln, 对齐特征
         self.in_proj_scene_layers = nn.ModuleList()
         for i in range(self.features_num):
             in_proj = nn.Linear(features_dims[i], self.embedding_dim)
@@ -113,7 +111,6 @@ class Mask3dSegmentor(nn.Module):
         # elif self.query_type == "zero":
         #     # zero feat, only sample pe
         #     self.in_proj_query_pe = nn.Linear(self.features_dims[-1], self.embedding_dim)
-        # TODO query、aux
         # positional encoding
         self.pos_enc = PositionEmbeddingCoordsSine(
             pos_type="fourier",
@@ -169,6 +166,8 @@ class Mask3dSegmentor(nn.Module):
         """
         构建 scene
         - scene: scene data dict
+            - semantic: (N_point[-1],), gt semantic id
+            - instance: (N_point[-1],), gt instance id
             - feature_pyramid: features collection layer
                 - x_list(): return x_list, x in ['feat', 'coord', 'batch']
                 - downsample(): downsample feat
@@ -178,7 +177,9 @@ class Mask3dSegmentor(nn.Module):
             - batch_list: list, batch_list[j].shape == (N_point[j],)
             - pe_list: list, pe_list[j].shape == (N_point[j], embedding_dim)
         """
-        scene = Scene(pcd_dict)
+        scene = Scene()
+        scene.semantic = pcd_dict["segment"]
+        scene.instance = pcd_dict["instance"]
         scene.feature_pyramid = self.pcd_backbone.feature_pyramid
         scene.feat_list = scene.feature_pyramid.feat_list()
         scene.coord_list = scene.feature_pyramid.coord_list()
@@ -207,11 +208,15 @@ class Mask3dSegmentor(nn.Module):
             )
         elif self.query_type == "sample":
             # TODO random choose 一部分
-            idx = pcd_dict["sample_idx"]
+            idx = torch.where(pcd_dict["sampled_mask"])[0]
+            if len(idx) > self.num_query:
+                # 如果采样点数大于 num_query, 则随机采样
+                idx = idx[torch.randperm(len(idx))][: self.num_query]
+            query.idx = idx
+            query.gt_ins_id = self.scene.instance[idx]
             query.feat = scene.feat_list[-1][idx]
             query.pe = scene.pe_list[-1][idx]
             query.batch = scene.batch_list[-1][idx]
-        # TODO query_idx_to_coord_idx, gt_id_to_query_idx_list
         return query
 
     def add_new_query(self, new_query):
@@ -266,7 +271,18 @@ class Mask3dSegmentor(nn.Module):
         """构建与匹配的监督信号, 用于计算 loss;\n
         - pred, target is the result of get_pred() and get_target()
         - add matched_idx to pred and target, shape: (N_matched,)"""
-        pred["matched_idx"], target["matched_idx"] = self.matcher(pred, target)
+        if self.query_type == "learn":
+            pred["matched_idx"], target["matched_idx"] = self.matcher(pred, target)
+        elif self.query_type == "sample":
+            # pred["matched_idx"], target["matched_idx"] = self.matcher(pred, target)
+            pred_matched_ins_id = self.query.gt_ins_id
+            pred["matched_idx"] = torch.arange(
+                pred_matched_ins_id.shape[0], device=pred_matched_ins_id.device
+            )
+            sorted_target_ins_id, sort_indices = torch.sort(target["ins_id"])
+            # 快速计算把 a 插入 b 中的位置, 相等则在前插
+            buckets = torch.bucketize(pred_matched_ins_id, sorted_target_ins_id)
+            target["matched_idx"] = sort_indices[buckets]
         return pred, target
 
     def post_process(self, pred):
@@ -296,9 +312,7 @@ class Mask3dSegmentor(nn.Module):
             dim=0,
         ).contiguous()
         # TODO 把背景类也作为instance纳入训练, 测试时通过 semantic proto 做 query 来去除, 不关心的点为 -1
-        pred_instance = (
-            mask_to_id(masks) - 1
-        )  # 预测的instance id, 互相排斥的 panoptic 结果
+        pred_instance = mask_to_id(masks) - 1  # 预测的instance id, 互相排斥的 panoptic 结果
         pred_instance[pred_instance == -1] = self.instance_ignore
         unique_pred_id = unique_id(
             pred_instance, self.instance_ignore
@@ -322,9 +336,11 @@ class Mask3dSegmentor(nn.Module):
         pcd_dict["pcd_pred"] = seg_logits
         self.scene = self.construct_scene(pcd_dict)
         self.query = self.construct_query(pcd_dict, self.scene)
-        self.scene.feat_list, self.query.feat, self.scene.mask_feat = (
-            self.in_projection(self.scene.feat_list, self.query.feat)
-        )
+        (
+            self.scene.feat_list,
+            self.query.feat,
+            self.scene.mask_feat,
+        ) = self.in_projection(self.scene.feat_list, self.query.feat)
 
         pred_last = {
             "masks_logits": torch.ones(
@@ -341,19 +357,15 @@ class Mask3dSegmentor(nn.Module):
         preds = self.refine(pred_last)  # 优化pred
 
         # 改变成合适测试的shape, 方便计算 metric
-        preds[-1] = get_pred(preds[-1], self.query.batch)
-        target = get_target(
-            pcd_dict["segment"],
-            pcd_dict["instance"],
-            self.scene.batch_list[-1],
-            self.instance_ignore,
-        )
+        preds[-1] = get_pred(preds[-1], self.query)
+        target = get_target(self.scene, self.instance_ignore)
 
         # test dataset, target is empty, do post process
         if target["is_testset"]:
             preds[-1] = self.post_process(preds[-1])
             return Dict(pred=preds.pop(), target=target)
         # train & eval dataset, 返回的信息打印 log(engines/hooks/misc.py)
+        # 计算 loss
         preds[-1], target = self.match_pred_target(preds[-1], target)
         loss, info_dict = self.loss(preds, target)
 

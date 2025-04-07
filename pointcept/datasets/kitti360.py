@@ -19,13 +19,6 @@ from pointcept.utils.cache import shared_dict
 
 @DATASETS.register_module()
 class Kitti360Dataset(DefaultDataset):
-    VALID_ASSETS = [
-        "coord",
-        "color",
-        "semantic",
-        "instance",
-    ]
-
     def get_data_list(self):
         data_list = glob.glob(os.path.join(self.data_root, self.split, "*", "*"))
         return data_list

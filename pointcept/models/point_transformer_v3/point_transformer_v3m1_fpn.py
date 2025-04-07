@@ -692,9 +692,7 @@ class PointTransformerV3_FPN(PointModule):
 
         # 特征金字塔, 收集每个 encoder stage 的特征图
         self.feature_pyramid = FeaturePyramid()
-        self.enc.add(
-            self.feature_pyramid, name="feature_pyramid"
-        )  # 加在 encoder 的最后
+        self.enc.add(self.feature_pyramid, name="feature_pyramid")  # 加在 encoder 的最后
         # decoder
         if not self.cls_mode:
             dec_drop_path = [

@@ -28,9 +28,7 @@ def sigmoid_dice_loss(inputs: torch.Tensor, targets: torch.Tensor):
     """
     inputs = inputs.sigmoid()
     numerator = 2 * torch.einsum("nc,mc->nm", inputs, targets)  # 两两的相交的面积
-    denominator = (
-        inputs.sum(-1)[:, None] + targets.sum(-1)[None, :]
-    )  # 广播, 两两的面积和
+    denominator = inputs.sum(-1)[:, None] + targets.sum(-1)[None, :]  # 广播, 两两的面积和
     loss = 1 - (numerator + 1) / (denominator + 1)
     return loss
 

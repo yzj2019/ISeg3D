@@ -24,4 +24,4 @@ from .shapenet_part import ShapeNetPartDataset
 from .dataloader import MultiDatasetDataloader
 
 # iseg
-from .iseg import collate_fn_iseg
+from .iseg import *
