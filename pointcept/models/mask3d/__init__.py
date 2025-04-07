@@ -1,2 +1,2 @@
-from .mask3d_mask_decoder import Mask3dMaskDecoder, Mask3dDecoderBlock
-from .model import Mask3dSegmentor
+from .mask_decoder import *
+from .model import *

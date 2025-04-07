@@ -1,6 +1,5 @@
 from .builder import build_model
 from .default import DefaultSegmentor, DefaultClassifier
-from .default import DefaultInteractiveSegmentor, DefaultSegmentorPretrained
 
 # Backbones
 from .sparse_unet import *
@@ -25,8 +24,9 @@ from .masked_scene_contrast import *
 from .point_prompt_training import *
 
 # interactive segmentation
+from .default_iseg import DefaultInteractiveSegmentor, DefaultISegEncoder
 from .segment_anything import *
-from .interactive import *
+from .iseg3d_sam import *
 from .agile3d import *
 from .mask3d import *
 

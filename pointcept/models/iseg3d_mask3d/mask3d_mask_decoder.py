@@ -18,7 +18,7 @@ from .attention import SqueezedCrossAttentionLayer, SqueezedSelfAttentionLayer, 
 from ..builder import MODELS, build_model
 from ..utils import offset2batch
 
-from pointcept.utils.clicker import MyClick
+from pointcept.utils_iseg.clicker import MyClick
 
 from .positional_embedding import PositionEmbeddingCoordsSine, PositionalEncoding3D
 

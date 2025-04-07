@@ -103,66 +103,6 @@ class ScanNetDataset(DefaultDataset):
             data_dict["sampled_index"] = sampled_index
         return data_dict
 
-    # modified for ins seg
-    def get_idx_by_name(self, scene_name):
-        '''scene_name like 'scene0011_00'''
-        return [self.data_list.index(s) for s in self.data_list if scene_name in s][0]
-
-    def get_data_by_name(self, scene_name):
-        '''scene_name like 'scene0011_00'''
-        idx = self.get_idx_by_name(scene_name)
-        return self.get_data(idx)
-
-    def get_data_name(self, idx):
-        return os.path.basename(self.data_list[idx % len(self.data_list)]).split(".")[0]
-
-    def prepare_train_data(self, idx):
-        # load data
-        data_dict = self.get_data(idx)
-        data_dict = self.transform(data_dict)
-        return data_dict
-
-    def prepare_test_data(self, idx):
-        # load data
-        data_dict = self.get_data(idx)
-        segment = data_dict.pop("segment")
-        data_dict = self.transform(data_dict)
-        # modified for ins seg
-        coord = data_dict["coord"]
-        if "instance" in data_dict.keys():
-            instance = data_dict.pop("instance")
-        else:
-            instance = None
-        data_dict_list = []
-        for aug in self.aug_transform:
-            data_dict_list.append(aug(deepcopy(data_dict)))
-
-        input_dict_list = []
-        for data in data_dict_list:
-            data_part_list = self.test_voxelize(data)
-            for data_part in data_part_list:
-                if self.test_crop:
-                    data_part = self.test_crop(data_part)
-                else:
-                    data_part = [data_part]
-                input_dict_list += data_part
-
-        for i in range(len(input_dict_list)):
-            input_dict_list[i] = self.post_transform(input_dict_list[i])
-        data_dict = dict(
-            fragment_list=input_dict_list, segment=segment, instance=instance, name=self.get_data_name(idx), coord=coord
-        )
-        return data_dict
-
-    def __getitem__(self, idx):
-        if self.test_mode:
-            return self.prepare_test_data(idx)
-        else:
-            return self.prepare_train_data(idx)
-
-    def __len__(self):
-        return len(self.data_list) * self.loop
-
 
 @DATASETS.register_module()
 class ScanNet200Dataset(ScanNetDataset):

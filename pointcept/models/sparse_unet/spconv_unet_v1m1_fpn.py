@@ -85,8 +85,57 @@ class BasicBlock(spconv.SparseModule):
         return out
 
 
+class FeaturePyramid(spconv.SparseModule):
+    '''特征金字塔, 收集不同分辨率的特征图'''
+    def __init__(self):
+        '''只实例化一次, 加在每个 decoder stage 结尾'''
+        super().__init__()
+        self.features = []
+        self.pooling = spconv.SparseAvgPool3d(kernel_size=2, stride=2)
+
+    def reset(self):
+        features = self.features
+        self.features = []
+        del features
+
+    def forward(self, x: spconv.SparseConvTensor):
+        self.features.append(x)
+        return x
+    
+    @property
+    def resolutions(self):
+        return torch.tensor([x.shape for x in self.features])
+
+    def feat_list(self):
+        return [x.features for x in self.features]
+    
+    def coord_list(self):
+        return [x.indices[:, 1:] for x in self.features]
+    
+    def batch_list(self):
+        return [x.indices[:, 0] for x in self.features]
+
+    @torch.no_grad()
+    def downsample(self, x: torch.Tensor, from_resolution=0, to_resolution=0):
+        '''
+        将 x 的 dim 0, 按照 indices, 从 from_resolution 分辨率, 下采样到 to_resolution 分辨率
+        - from_resolution: int, 源分辨率对应的 features 中的索引
+        - to_resolution: int, 目标分辨率对应的 features 中的索引
+        '''
+        num_pooling = from_resolution - to_resolution
+        x = spconv.SparseConvTensor(
+            features=x.float(),
+            indices=self.features[from_resolution].indices,         # 共享 indices 应该不需要 .clone().detach(), pooling 会创建新的
+            spatial_shape=self.features[from_resolution].spatial_shape,
+            batch_size=self.features[from_resolution].batch_size
+        )
+        for _ in range(num_pooling):
+            x = self.pooling(x)
+        return x.features
+
+
 @MODELS.register_module("SpUNet-v1m1-fpn")
-class SpUNetBase(nn.Module):
+class SpUNetBase_FPN(nn.Module):
     def __init__(
         self,
         in_channels,
@@ -95,7 +144,6 @@ class SpUNetBase(nn.Module):
         channels=(32, 64, 128, 256, 256, 128, 96, 96),
         layers=(2, 3, 4, 6, 2, 2, 2, 2),
         cls_mode=False,
-        out_fpn=False
     ):
         super().__init__()
         assert len(layers) % 2 == 0
@@ -107,7 +155,6 @@ class SpUNetBase(nn.Module):
         self.layers = layers
         self.num_stages = len(layers) // 2
         self.cls_mode = cls_mode
-        self.out_fpn = out_fpn          # 返回 feature map list
 
         norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)
         block = BasicBlock
@@ -131,6 +178,8 @@ class SpUNetBase(nn.Module):
         self.up = nn.ModuleList()
         self.enc = nn.ModuleList()
         self.dec = nn.ModuleList() if not self.cls_mode else None
+        # 特征金字塔, 收集每个 encoder stage 的特征图
+        self.feature_pyramid = FeaturePyramid()
 
         for s in range(self.num_stages):
             # encode num_stages
@@ -213,9 +262,12 @@ class SpUNetBase(nn.Module):
                         )
                     )
                 )
+                self.dec[-1].add_module("feature_pyramid", self.feature_pyramid)  # 加在每个 decoder stage 的最后
 
             enc_channels = channels[s]
             dec_channels = channels[len(channels) - s - 2]
+
+        self.enc[-1].add_module("feature_pyramid", self.feature_pyramid)  # 加在 encoder 的最后
 
         final_in_channels = (
             channels[-1] if not self.cls_mode else channels[self.num_stages - 1]
@@ -247,8 +299,8 @@ class SpUNetBase(nn.Module):
         grid_coord = input_dict["grid_coord"]
         feat = input_dict["feat"]
         offset = input_dict["offset"]
-        if self.out_fpn:
-            feature_maps = []
+        # 在开始处清空 feature_pyramid
+        self.feature_pyramid.reset()
         
         batch = offset2batch(offset)
         sparse_shape = torch.add(torch.max(grid_coord, dim=0).values, 96).tolist()
@@ -268,23 +320,18 @@ class SpUNetBase(nn.Module):
             x = self.enc[s](x)
             skips.append(x)
         x = skips.pop(-1)
-        if self.out_fpn:
-            feature_maps.append(x)
         if not self.cls_mode:
             # dec forward
             for s in reversed(range(self.num_stages)):
+                # print(f"up {s} x.features.shape: {x.features.shape}")
                 x = self.up[s](x)
                 skip = skips.pop(-1)
                 x = x.replace_feature(torch.cat((x.features, skip.features), dim=1))
                 x = self.dec[s](x)
-                if self.out_fpn:
-                    feature_maps.append(x)
 
         x = self.final(x)               # channels的最后一维, 同样也是特征的维度, 向num_classes的映射, SubMConv3d
         if self.cls_mode:
             x = x.replace_feature(
                 scatter(x.features, x.indices[:, 0].long(), reduce="mean", dim=0)
             )
-        if self.out_fpn:
-            return x.features, feature_maps
-        return x.features
+        return self.feature_pyramid

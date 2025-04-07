@@ -11,8 +11,6 @@ from ..builder import MODELS, build_model
 
 from ..losses import build_criteria, LOSSES
 
-from ..interactive.misc import get_center
-
 from pointcept.utils.misc import intersection_and_union_gpu
 
 

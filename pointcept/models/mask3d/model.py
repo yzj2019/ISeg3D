@@ -7,235 +7,320 @@ from torch import Tensor, nn
 import torch.nn.functional as F
 import numpy as np
 import itertools
+from addict import Dict
 
+from .positional_embedding import PositionEmbeddingCoordsSine, PositionalEncoding3D
 from ..builder import MODELS, build_model
-
 from ..losses import build_criteria, LOSSES
 
-from ..interactive.misc import get_center
+from pointcept.models.utils.structure import Point      # 使用 Point 类, DefaultSegmentorv2
+from pointcept.utils_iseg.structure import Scene, Query
+from pointcept.utils_iseg.matcher import HungarianMatcher
+from pointcept.utils_iseg.ins_seg import mask_to_id, id_to_mask, unique_id,\
+                                         get_pred, get_target, softgroup_post_process
 
-from pointcept.utils.misc import intersection_and_union_gpu
 
 
-@MODELS.register_module()
+@MODELS.register_module("Mask3dSegmentor-learnable")
 class Mask3dSegmentor(nn.Module):
-    def __init__(self, pcd_backbone=None, mask_decoder=None, loss=None, 
-                 semantic=True, clicks_from_instance=True, 
-                 iter_loss_weight=[0.2,0.3,0.4],
-                 mask_threshold=0.):
+    def __init__(self, 
+                 pcd_backbone=None, mask_decoder=None, 
+                 fused_backbone=False, on_segment=False,
+                 loss=None, matcher_cfg=None, aux=True,
+                 features_dims=(256, 256, 128, 96, 96),
+                 num_query=200, query_type="learn",
+                 mask_threshold=0.5, topk_per_scene=200,
+                 semantic_ignore=-1, instance_ignore=-1, semantic_background=(0,1)
+                 ):
         '''
-        interactive的segmentor, 返回没做softmax的结果
-        - 直接由backbone预测seg的结果, 训练模式则self.training设为True, 其它时候返回backbone的输出和criteria的losses
-        - pcd_backbone和img_backbone默认直接在build_model构建类的时候, __init__里加载预训练参数
-        - pcd_backbone和img_backbone默认在forward过程中更新embedding
-        - pcd_backbone和img_backbone需要有get_embedding方法, 获取点云和图像的embedding
-        - semantic: 是否为语义分割任务
-        - clicks_from_instance: 是否利用instance gt去构建click
-        - iter_loss_weight: 迭代训练的loss占比
+        - pcd_backbone: 点云backbone
+        - mask_decoder: mask decoder
+        - fused_backbone: 是否冻住 backbone 参数, 不参与梯度更新
+        - on_segment: 是否在 sem seg 结果上做实例分割
+        - loss: 损失函数
+        - matcher_cfg: matcher 配置参数
+        - aux: 是否采用 aux loss
+        - features_dims: 多尺度特征维度
+        - num_query: 查询点数
+        - query_type: 查询点类型, "learn" or "sample"
+        - mask_threshold: 测试时 mask 截断 threshold
+        - topk_per_scene: 每个场景中保留的预测实例数, 用于 soft grouping
+        - semantic_ignore: 忽略的 semantic id
+        - instance_ignore: 忽略的 instance id
+        - semantic_background: 背景类, 用于测试时去除背景类
         '''
         super().__init__()
         self.pcd_backbone = build_model(pcd_backbone)
+        if fused_backbone:
+            for p in self.pcd_backbone.parameters():
+                p.requires_grad = False
         self.mask_decoder = build_model(mask_decoder)
+        self.on_segment = on_segment
         self.loss = LOSSES.build(loss)
-        self.iter_loss_weight = iter_loss_weight
-        self.max_train_iter = len(iter_loss_weight)
-        assert self.max_train_iter > 0, "len(iter_loss_weight) must > 0"
+        self.matcher = HungarianMatcher(**matcher_cfg)
+        self.aux = aux
+        self.features_dims = features_dims
+        self.num_query = num_query
+        self.query_type = query_type
         self.mask_threshold = mask_threshold
-        self.semantic = semantic
-        self.clicks_from_instance = clicks_from_instance
-    
-    def refine(self, pred_last, pcd_dict, clicks):
+        self.topk_per_scene = topk_per_scene
+        self.semantic_ignore = semantic_ignore
+        self.instance_ignore = instance_ignore
+        self.semantic_background = semantic_background
+        self.features_num = len(features_dims)
+        assert self.features_num == self.mask_decoder.features_num, \
+            f"features_num {self.features_num} must be same as mask_decoder.features_num {self.mask_decoder.features_num}"
+        self.num_classes = self.mask_decoder.num_classes
+        self.embedding_dim = self.mask_decoder.embedding_dim
+
+        # scene
+        self.mask_feat_proj = nn.Linear(features_dims[-1], self.embedding_dim)
+        self.scene_norm = nn.LayerNorm(self.embedding_dim)      # 在 in_proj 后加一个 ln, 对齐特征
+        self.in_proj_scene_layers = nn.ModuleList()
+        for i in range(self.features_num):
+            in_proj = nn.Linear(features_dims[i], self.embedding_dim)
+            self.in_proj_scene_layers.append(in_proj)
+
+        # query
+        assert self.query_type in ["learn", "sample", "zero"]
+        if self.query_type == "learn":
+            # learnable, both feat and pe
+            self.query_feat = nn.Embedding(num_query, self.embedding_dim)
+            self.query_pe = nn.Embedding(num_query, self.embedding_dim)
+        elif self.query_type == "sample":
+            # sample, feat and pe
+            self.in_proj_query_feat = nn.Linear(self.features_dims[-1], self.embedding_dim)
+        #     self.in_proj_query_pe = nn.Linear(self.features_dims[-1], self.embedding_dim)
+        # elif self.query_type == "zero":
+        #     # zero feat, only sample pe
+        #     self.in_proj_query_pe = nn.Linear(self.features_dims[-1], self.embedding_dim)
+        # TODO query、aux
+        # positional encoding
+        self.pos_enc = PositionEmbeddingCoordsSine(
+            pos_type="fourier",
+            d_pos=self.embedding_dim,
+            gauss_scale=1.0,
+            normalize=True,
+        )
+
+
+    def get_scene_pe(self, coord_list, batch_list):
         '''
-        场景点云的预测结果, 用该场景的RGBD去refine
+        获取 positional encoding
+        - coord_list: (features_num, N_point, 3)
+        - batch_list: (features_num, N_point,)
+        '''
+        bs = batch_list[-1].max().item() + 1
+        # 使用最高分辨率坐标, 作为归一化的范围
+        mins_list = [coord_list[-1][batch_list[-1] == b].min(dim=0)[0] 
+                     for b in range(bs)]
+        maxs_list = [coord_list[-1][batch_list[-1] == b].max(dim=0)[0] 
+                     for b in range(bs)]
+        pe_list = []
+        for coord, batch in zip(coord_list, batch_list):
+            pe = []
+            for b in range(bs):
+                mask = batch == b
+                mins = mins_list[b]
+                maxs = maxs_list[b]
+                pe.append(self.pos_enc(
+                    coord[mask].float(),
+                    input_range=[mins, maxs]
+                ))
+            pe_list.append(torch.cat(pe))
+        return pe_list
+
+
+    def find_nearest_point(self, source, query, source_batch, query_batch):
+        '''
+        获取 points 在 scene 中的最近点, 返回 index (offset 对应的 batch 内的, 不是全局index)
+        - source: (N_point, 3)
+        - query: (N_query, 3)
+        '''
+        assert source_batch.max().item() == query_batch.max().item(), \
+            "source_batch and query_batch must have the same shape"
+        bs = source_batch.max().item() + 1
+        dist = torch.cdist(source, query)
+        matched_idx = torch.zeros(query.shape[0], dtype=torch.long)
+        for i in range(bs):
+            mask_s = source_batch == i
+            mask_q = query_batch == i
+            matched_idx[mask_q] = dist[mask_s, mask_q].argmin(dim=0)
+        return matched_idx
+
+
+    def construct_scene(self, pcd_dict):
+        '''
+        构建 scene
+        - scene: scene data dict
+            - feature_pyramid: features collection layer
+                - x_list(): return x_list, x in ['feat', 'coord', 'batch']
+                - downsample(): downsample feat
+                - features sorted from coarse to fine
+            - feat_list: list, feat_list[j].shape == (N_point[j], features_dims[j])
+            - coord_list: list, coord_list[j].shape == (N_point[j], 3)
+            - batch_list: list, batch_list[j].shape == (N_point[j],)
+            - pe_list: list, pe_list[j].shape == (N_point[j], embedding_dim)
+        '''
+        scene = Scene(pcd_dict)
+        scene.feature_pyramid = self.pcd_backbone.feature_pyramid
+        scene.feat_list = scene.feature_pyramid.feat_list()
+        scene.coord_list = scene.feature_pyramid.coord_list()
+        scene.batch_list = scene.feature_pyramid.batch_list()
+        scene.pe_list = self.get_scene_pe(scene.coord_list, scene.batch_list)
+        return scene
+
+
+    def construct_query(self, pcd_dict, scene:Scene):
+        '''
+        构建 query
+        - query: query data dict
+            - feat: (N_query, query_embedding_dim)
+            - pe: positional encoding, (N_query, embedding_dim)
+            - batch: (N_query,)
+        '''
+        query = Query()
+        bs = scene.batch_list[-1].max().item() + 1
+        if self.query_type == "learn":
+            # 将 self.latent_query 复制 b 次
+            query.feat = self.query_feat.weight.repeat(bs, 1).to(scene.feat_list[-1].device)
+            query.pe = self.query_pe.weight.repeat(bs, 1).to(scene.feat_list[-1].device)
+            query.batch = torch.arange(bs, device=query.feat.device).repeat_interleave(self.num_query)
+        elif self.query_type == "sample":
+            # TODO random choose 一部分
+            idx = pcd_dict["sample_idx"]
+            query.feat = scene.feat_list[-1][idx]
+            query.pe = scene.pe_list[-1][idx]
+            query.batch = scene.batch_list[-1][idx]
+        # TODO query_idx_to_coord_idx, gt_id_to_query_idx_list
+        return query
+
+
+    def add_new_query(self, new_query):
+        '''
+        添加新的 query
+        '''
+        # TODO 最后记得做 in_proj
+        # self.query.feat[-N_query_new:] = self.in_proj_query(self.query.feat[-N_query_new:])   # 为新query单独做 in_proj
+        pass
+
+
+    def in_projection(self, scene, query):
+        '''
+        - scene: list, scene[j] == (N_point[j], features_dims[j])
+        - query: (N_query, query_embedding_dim)
+        - scene_out: list, scene_out[j] == (N_point[j], embedding_dim)
+        - query_out: (N_query, embedding_dim)
+        - scene_mask_feat: (N_point[-1], embedding_dim), 作为 source 在 head 处用于计算 mask
+        '''
+        if self.query_type == "sample":
+            query = self.in_proj_query_feat(query)
+        scene_mask_feat = self.mask_feat_proj(scene[-1])
+        scene_mask_feat = self.scene_norm(scene_mask_feat)
+        scene_out = []
+        for j in range(len(scene)):
+            feat = scene[j]              # (N_point[j], self.features_dims[j])
+            feat = self.in_proj_scene_layers[j](feat.float())   # (N_point[j], embedding_dim)
+            feat = self.scene_norm(feat)
+            scene_out.append(feat)
+        return scene_out, query, scene_mask_feat
+
+
+    def refine(self, pred_last):
+        '''
+        细化场景点云的预测结果
         - pred_last: 上一次的预测
-            - 'masks_heatmap': tensor, N_points x N_clicks
-            - 'cls_logits': tensor, N_clicks x num_classes
-        - pcd_dict: fragment_list 中的一个, 做了voxelize, ['coord', 'discrete_coord', 'index', 'offset', 'feat']
-        - clicks: list, N_clicks
-
+            - 'masks_logits': (N_query_last, N_point[-1])
+            - 'cls_logits': (N_query_last, num_classes)\n
         Returns:
-        - pred_refine: 更新后的预测
-            - 'masks_heatmap': tensor, N_points x N_clicks
-            - 'cls_logits': tensor, N_clicks x num_classes
-
-        TODO:
-        - 如何利用pred?
+        - preds: 更新后的预测, list(dict), 如果采用 aux loss, 则包含每层 decoder 的输出, 用于监督, 否则只返回最后一层
+            - 'masks_logits': N_query x N_point[j // num_decoders]
+            - 'cls_logits': N_query x num_classes
+        Tips:
+        - 如何利用pred_last? 使用 float type attention mask
         '''
-        if len(clicks) == 0:
-            return pred_last
-        last_masks_heatmap = pred_last['masks_heatmap']
-        masks_heatmap, cls_logits = self.mask_decoder(pcd_dict, clicks, last_masks_heatmap)      # N_points x N_clicks, N_clicks x num_classes
+        preds = self.mask_decoder(self.scene, self.query, pred_last)
+        if not self.aux:
+            preds = [preds.pop()]
+        return preds
 
-        # new_logits = masks_heatmap @ cls_logits        # N_points x num_classes, 相当于point wise地叠加了多个mask
 
-        # TODO: 这样做会有问题, 即如果 click 查询出的mask不能覆盖整个点云里面含有instance的部分, 那么会出现某些point的heatmap截断为0, 这样logits也全为0, 会误分类为wall; 
+    def match_pred_target(self, pred, target):
+        '''构建与匹配的监督信号, 用于计算 loss;\n
+        - pred, target is the result of get_pred() and get_target()
+        - add matched_idx to pred and target, shape: (N_matched,)'''
+        pred['matched_idx'], target['matched_idx'] = self.matcher(pred, target)
+        return pred, target
 
-        pred_refine = {
-            'masks_heatmap': masks_heatmap,
-            'cls_logits': cls_logits
+    def post_process(self, pred):
+        '''
+        后处理, 将 pred dict 转换为 互相排斥的 panoptic 结果, 同时做 soft grouping (arXiv:2203.01509)
+        注意shape尚未被 get_pred() 改变
+        - pred: dict, 预测结果
+            - 'masks_logits': (N_query, N_point[-1])
+            - 'cls_logits': (N_query, num_classes)
+            - other attributes with (N_query, ...)
+
+        Returns: pred dict
+        - 'masks': (N_pred_instance, N_point[-1]), int tensor binary mask, for eval & test
+        - 'masks_logits': (N_pred_instance, N_point[-1]), as logits, for loss func
+        - 'cls_logits': (N_pred_instance, num_classes)
+        - 'scores': (N_pred_instance,), 每个 instance 的得分
+        - other attributes with (N_pred_instance, ...)
+        '''
+        # 不能直接截断, 会出现某些point的heatmap截断为全0, argmax默认属于 query 0
+        # 解决: 加一个 ignore filter mask
+        masks_logits = pred['masks_logits']
+        masks = torch.cat([torch.ones_like(masks_logits[:1, :]) * self.mask_threshold, 
+                           masks_logits.sigmoid()], dim=0).contiguous()
+        # TODO 把背景类也作为instance纳入训练, 测试时通过 semantic proto 做 query 来去除, 不关心的点为 -1
+        pred_instance = mask_to_id(masks) - 1       # 预测的instance id, 互相排斥的 panoptic 结果
+        pred_instance[pred_instance == -1] = self.instance_ignore
+        unique_pred_id = unique_id(pred_instance, self.instance_ignore)    # filter 后, 有效的 query idx
+        masks = id_to_mask(pred_instance, unique_pred_id)
+
+        for key in pred.keys() - {"matched_idx"}:
+            pred[key] = pred[key][unique_pred_id]
+        pred["masks"] = masks
+        pred['masks_logits'] = pred['masks_logits'] * masks   # 相当于用 mask_threshold 阈值截断 masks_logits
+
+        pred = softgroup_post_process(pred, self.topk_per_scene)
+        return pred
+
+
+    def forward(self, pcd_dict):
+        '''one time forward'''
+        # TODO train on segment
+        seg_logits = self.pcd_backbone(pcd_dict)        # (n, k)
+        pcd_dict["pcd_pred"] = seg_logits
+        self.scene = self.construct_scene(pcd_dict)
+        self.query = self.construct_query(pcd_dict, self.scene)
+        self.scene.feat_list, self.query.feat, self.scene.mask_feat = \
+            self.in_projection(self.scene.feat_list, self.query.feat)
+
+        pred_last = {
+            'masks_logits': torch.ones((0, pcd_dict["coord"].shape[0]), 
+                                       device=pcd_dict["coord"].device, dtype=pcd_dict["coord"].dtype), 
+            'cls_logits': torch.zeros((0, self.num_classes), 
+                                      device=pcd_dict["coord"].device, dtype=pcd_dict["coord"].dtype)
         }
+        preds = self.refine(pred_last)    # 优化pred
 
-        return pred_refine
-    
+        # 改变成合适测试的shape, 方便计算 metric
+        preds[-1] = get_pred(preds[-1], self.query.batch)
+        target = get_target(pcd_dict['segment'], pcd_dict['instance'],
+                            self.scene.batch_list[-1], self.instance_ignore)
 
-    def forward_train(self, pcd_dict, clicker, img_dict, fusion):
-        # 训练策略写在这里了
-        # with torch.no_grad():
-        # 前 self.max_train_iter-1 次, 都不用梯度回传, 只有最后一次会回传梯度
-        pcd_pred = pcd_dict["pcd_pred"]      # (n, k)
-        clicks = clicker.make_init_clicks()     # 获取 clicks simulation
-        pred_last = {'masks_heatmap': None, 'cls_logits': None}
-        # TODO: 需要对clicks做组合, 使得能分割 single object; 但这么做会爆显存, 即使i取1也不行
-        loss_all = None
-        # for i in range(1,3):
-        #     clicks_selected_list = list(itertools.combinations(clicks, i))
-        #     for clicks_selected in clicks_selected_list:
-        #         masks_heatmap, cls_logits, pred_refine = self.refine(pcd_pred, pcd_dict, clicks_selected)    # 优化pred
-        #         clicks_dict = dict(
-        #             masks_heatmap=masks_heatmap, cls_logits=cls_logits,
-        #             pred_last=pcd_pred, pred_refine=pred_refine,
-        #             clicks=clicks_selected, clicks_from_instance=self.clicks_from_instance
-        #         )
-        #         loss, info_dict = self.loss(clicks_dict, pcd_dict)
-        #         if loss_all == None:
-        #             loss_all = loss
-        #         else:
-        #             loss_all += loss
+        # test dataset, target is empty, do post process
+        if target['is_testset']:
+            preds[-1] = self.post_process(preds[-1])
+            return Dict(pred=preds.pop(), target=target)
+        # train & eval dataset, 返回的信息打印 log(engines/hooks/misc.py)
+        preds[-1], target = self.match_pred_target(preds[-1], target)
+        loss, info_dict = self.loss(preds, target)
 
-        for i in range(self.max_train_iter):
-            pred_refine = self.refine(pred_last, pcd_dict, clicks)    # 优化pred
-            masks_heatmap, cls_logits = pred_refine['masks_heatmap'], pred_refine['cls_logits']
-            clicks_dict = dict(
-                pred_last=pred_last, pred_refine=pred_refine,
-                clicks=clicks, clicks_from_instance=self.clicks_from_instance,
-                mask_threshold=self.mask_threshold
-            )
-            loss, info_dict = self.loss(clicks_dict, pcd_dict)
-            # 记得下面返回的loss也要改
-            if loss_all == None:
-                loss_all = self.iter_loss_weight[i] * loss
-            else:
-                loss_all += self.iter_loss_weight[i] * loss
-            pred_last['masks_heatmap'] = masks_heatmap.clone().detach()
-            pred_last['cls_logits'] = cls_logits.clone().detach()
-            clicker.update_pred(info_dict['class_tag_to_mask'])
-            clicks = clicker.make_next_clicks()
-
-
-        # 后面需要用 masks_heatmap 梯度, 所以这里建个新的, 截断用来算 per click mask iou
-        masks = masks_heatmap.clone().detach()
-        masks[masks <= self.mask_threshold] = 0
-        masks[masks > 0] = 1
-        masks_target = info_dict["masks_target"]
-        cls_target = info_dict["cls_target"]
-        cls_pred = F.softmax(cls_logits, -1).max(1)[1]
-        intersection, union, target = intersection_and_union_gpu(
-                                        cls_pred, cls_target, 20, -1)
-        clicks_cls_iou = intersection / (union + 1e-10)
-        clicks_cls_iou = clicks_cls_iou[union!=0].mean()
-        clicks_masks_intersection = (masks * masks_target).sum(0)
-        clicks_masks_union = ((masks + masks_target) > 0).float().sum(0)
-        clicks_masks_iou = clicks_masks_intersection / clicks_masks_union
-        clicks_masks_ap50 = torch.Tensor([(clicks_masks_iou[clicks_masks_iou>0.5]).shape[0] / clicks_masks_iou.shape[0]])
-
-        # iter for max_train_iter
-        # for i in range(self.max_train_iter-2):
-        #     clicker.update_pred(pred_refine.max(1)[1].data)
-        #     clicks = clicker.make_next_click()
-        #     pred_refine = self.refine(pred_refine, pcd_dict, clicks)
-        #     loss += self.loss(pred_refine, pcd_dict, clicks)
-        # clicker.update_pred(pred_refine.max(1)[1].data)
-        # clicks = clicker.make_next_click()
-        # pred_refine = self.refine(pred_refine, pcd_dict, clicks)
-        # seg_logits = pred_refine
-        # loss += self.loss(seg_logits, pcd_dict, clicks)
-        
-        return dict(loss=loss_all, clicks_mask_loss=info_dict["clicks_mask_loss"], 
-                    clicks_cls_loss=info_dict["clicks_cls_loss"], 
-                    mask_loss=info_dict["mask_loss"], 
-                    clicks_masks_iou=clicks_masks_iou.mean(), clicks_masks_ap50=clicks_masks_ap50,
-                    clicks_cls_iou=clicks_cls_iou)
-
-
-    def forward_eval(self, pcd_dict, clicker, img_dict, fusion):
-        pcd_pred = pcd_dict["pcd_pred"]      # (n, k)
-        clicks = clicker.make_init_clicks()     # 获取 clicks simulation
-        pred_last = {'masks_heatmap': None, 'cls_logits': None}
-        pred_refine = self.refine(pred_last, pcd_dict, clicks)    # 优化pred
-        masks_heatmap, cls_logits = pred_refine['masks_heatmap'], pred_refine['cls_logits']
-        clicks_dict = dict(
-            pred_last=pred_last, pred_refine=pred_refine,
-            clicks=clicks, clicks_from_instance=self.clicks_from_instance,
-            mask_threshold=self.mask_threshold
-        )
-        loss, info_dict = self.loss(clicks_dict, pcd_dict)
-        return dict(loss=loss, seg_logits=masks_heatmap @ cls_logits, seg_logits_last=pcd_pred)
-    
-
-    def forward_test(self, pcd_dict, clicker, img_dict, fusion):
-        '''测试阶段, 没有真值, 随机取点并聚合mask'''
-        pcd_pred = pcd_dict["pcd_pred"]      # (n, k)
-        assert "fragment_idx" in pcd_dict.keys(), "must have fragment idx for tester"
-        clicks = clicker.make_init_clicks(
-            fragment_idx=pcd_dict["fragment_idx"],
-            fragment_feature=pcd_dict["feature_maps"][-1].features
-        )     # 获取 clicks simulation
-        pred_last = {'masks_heatmap': None, 'cls_logits': None}
-        if 'pred_last' in pcd_dict.keys():
-            pred_last = pcd_dict['pred_last']
-        pred_refine = self.refine(pred_last, pcd_dict, clicks)    # 优化pred
-        masks_heatmap, cls_logits = pred_refine['masks_heatmap'], pred_refine['cls_logits']
-        pred_refine['masks_heatmap'][masks_heatmap <= self.mask_threshold] = 0       # 非训练时对mask做截断
-        clicks_dict = dict(
-            pred_last=pred_last, pred_refine=pred_refine,
-            clicks=clicks, clicks_from_instance=self.clicks_from_instance,
-            mask_threshold=self.mask_threshold
-        )
-        return clicks_dict
-    
-
-    def forward_demo(self, pcd_dict, clicks, img_dict, fusion):
-        '''demo, 根据给定的clicks做segment'''
-        pcd_pred = pcd_dict["pcd_pred"]      # (n, k)
-        pred_last = {'masks_heatmap': None, 'cls_logits': None}
-        if 'pred_last' in pcd_dict.keys():
-            pred_last = pcd_dict['pred_last']
-        pred_refine = self.refine(pred_last, pcd_dict, clicks)    # 优化pred
-        masks_heatmap, cls_logits = pred_refine['masks_heatmap'], pred_refine['cls_logits']
-        pred_refine['masks_heatmap'][masks_heatmap <= self.mask_threshold] = 0       # 非训练时对mask做截断
-        clicks_dict = dict(
-            pred_last=pred_last, pred_refine=pred_refine,
-            clicks=clicks, clicks_from_instance=self.clicks_from_instance,
-            mask_threshold=self.mask_threshold
-        )
-        return clicks_dict
-
-
-    def forward(self, input_dict):
-        '''分开写成forward_train'''
-        pcd_dict = input_dict["pcd_dict"]
-        clicker = input_dict["clicker"]
-        img_dict = input_dict["img_dict"]
-        fusion = input_dict["fusion"]
-
-        res = self.pcd_backbone(pcd_dict)
-        pcd_dict["pcd_pred"] = res["seg_logits"]            # (n, k)
-        pcd_dict["feature_maps"] = res["feature_maps"]      # pcd embedding list, [(N_points, embedding_dims[i])]
-        
-        # train
         if self.training:
-            clicker.set_state('train', [pcd_dict],       # 这里加一层, 因为需要的是 fragment_list
-                          img_dict=img_dict, fusion=fusion)
-            return self.forward_train(pcd_dict, clicker, img_dict, fusion)
-        # val
-        elif "segment" in pcd_dict.keys():
-            clicker.set_state('val', [pcd_dict], img_dict=img_dict, fusion=fusion)
-            return self.forward_eval(pcd_dict, clicker, img_dict, fusion)
-        # interactive demo & progressive test
-        elif "clicks" in input_dict.keys():
-            clicks = input_dict["clicks"]
-            return self.forward_demo(pcd_dict, clicks, img_dict, fusion)
-        # test
+            return Dict(loss=loss, **info_dict)
         else:
-            # clicker.set_state 放到了外面
-            return self.forward_test(pcd_dict, clicker, img_dict, fusion)
+            # return pred target for evaluation
+            return Dict(pred=preds.pop(), target=target, loss=loss, **info_dict)

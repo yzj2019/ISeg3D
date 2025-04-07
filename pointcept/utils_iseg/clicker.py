@@ -11,8 +11,8 @@ import cv2
 import torch
 import random
 import pointops
-from .misc import intersection_and_union_gpu
-from .registry import Registry
+from ..utils.misc import intersection_and_union_gpu
+from ..utils.registry import Registry
 from collections.abc import Sequence
 
 CLICKER = Registry("clicker")

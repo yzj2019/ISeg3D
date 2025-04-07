@@ -2,7 +2,8 @@
 mask3d mask decoder, train from pretrained semantic spunet
 load from mask3d-8 ckpt, for single object segmentation
 '''
-from pointcept.datasets.preprocessing.scannet.meta_data.scannet200_constants import CLASS_LABELS_200, CLASS_LABELS_20
+from pointcept.datasets.preprocessing.kitti360.helpers.labels import trainId2label
+KITTI360_CLASS_LABELS = {i:trainId2label[i].name for i in trainId2label.keys()}
 
 _base_ = ["../_base_/interseg_default_runtime.py"]
 
@@ -150,7 +151,7 @@ pcd_data_root = "data/scannet"
 data = dict(
     num_classes=num_classes,
     ignore_index=semantic_ignore_label,
-    names=CLASS_LABELS_20,
+    names=KITTI360_CLASS_LABELS,
     train=dict(
         type=dataset_type,
         image_cfg = dict(
@@ -216,7 +217,7 @@ data = dict(
                 dict(type="NormalizeColor"),
                 dict(type="InstanceParser", segment_ignore_index=[semantic_ignore_label], instance_ignore_index=instance_ignore_label),
                 dict(type="ToTensor"),
-                dict(type="Collect", keys=("coord", "discrete_coord", "segment", "instance", "color", "scene_id"), feat_keys=("color", "normal"))
+                dict(type="Collect", keys=("coord", "discrete_coord", "segment", "instance", "instance_centroid", "color", "scene_id"), feat_keys=("color", "normal"))
             ]
         )
     ),
