@@ -209,13 +209,19 @@ class Mask3dSegmentor(nn.Module):
                 self.num_query
             )
         elif self.query_type == "sample":
-            # TODO random choose 一部分
             idx = torch.where(pcd_dict["sampled_mask"])[0]
+            gt_ins_id = self.scene.instance[idx]
+            # TODO 修改一下, 让 instance parser 不需要filt掉background
+            # 去掉 semantic background
+            idx = idx[gt_ins_id != self.instance_ignore]
+            gt_ins_id = gt_ins_id[gt_ins_id != self.instance_ignore]
             if len(idx) > self.num_query:
-                # 如果采样点数大于 num_query, 则随机采样
-                idx = idx[torch.randperm(len(idx))][: self.num_query]
+                # 如果采样点数大于 num_query, 则随机选部分
+                shuffle_idx = torch.randperm(len(idx))
+                idx = idx[shuffle_idx][: self.num_query]
+                gt_ins_id = gt_ins_id[shuffle_idx][: self.num_query]
             query.idx = idx
-            query.gt_ins_id = self.scene.instance[idx]
+            query.gt_ins_id = gt_ins_id
             query.feat = scene.feat_list[-1][idx]
             query.pe = scene.pe_list[-1][idx]
             query.batch = scene.batch_list[-1][idx]

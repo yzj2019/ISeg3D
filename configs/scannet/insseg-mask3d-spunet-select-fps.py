@@ -34,7 +34,7 @@ semantic_ignore = -1
 instance_ignore = -1
 semantic_background = (0, 1)
 matcher_cfg = dict(
-    cost_class=1.0, cost_focal=13.0, cost_dice=13.0, instance_ignore=instance_ignore
+    cost_class=1.0, cost_focal=2.0, cost_dice=2.0, instance_ignore=instance_ignore
 )
 # 数据集相关, max_num_instance <= num_query <=topk_per_scene <= num_query * num_classes
 # model settings
@@ -83,14 +83,14 @@ model = dict(
                 type="BinaryCrossEntropyLoss",
                 reduction="mean",
                 logits=True,
-                loss_weight=13.0,
+                loss_weight=2.0,
             ),
             dict(
                 type="BinaryDiceLoss",
                 exponent=1,
                 reduction="mean",
                 logits=True,
-                loss_weight=13.0,
+                loss_weight=2.0,
             ),
         ],
     ),
@@ -130,14 +130,14 @@ test = dict(type="InsSegTester")
 evaluate = True
 epoch = 200  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
 eval_epoch = 100
-optimizer = dict(type="AdamW", lr=0.0001, weight_decay=0.0001)
+optimizer = dict(type="AdamW", lr=0.004, weight_decay=0.0001)
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
-    pct_start=0.3,
+    pct_start=0.05,
     anneal_strategy="cos",
-    div_factor=25.0,
-    final_div_factor=100.0,
+    div_factor=10.0,
+    final_div_factor=1000.0,
 )
 # pointcept.utils.optimizer 中会根据 param_dicts 来设置不同的 lr
 # param_dicts = [dict(keyword="block", lr=0.00001)]

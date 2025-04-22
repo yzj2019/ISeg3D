@@ -93,11 +93,11 @@ class InsSegTrainer(Trainer):
 
 
 @TESTERS.register_module()
-class InsSegTester(TesterBase):
-    """instance segmentation tester"""
+class InsSegTesterUser(TesterBase):
+    """instance segmentation tester modified by user"""
 
     def __init__(self, cfg):
-        super(InsSegTester, self).__init__(cfg)
+        super(InsSegTesterUser, self).__init__(cfg)
 
     def test(self):
         pass

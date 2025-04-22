@@ -14,7 +14,7 @@ conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 pytorch-cuda=
 # pointcept common
 conda install ninja -y
 conda install h5py pyyaml -c anaconda -y
-conda install sharedarray tensorboard tensorboardx yapf addict einops scipy plyfile termcolor timm ipykernel -c conda-forge -y
+conda install sharedarray tensorboard tensorboardx wandb yapf addict einops scipy plyfile termcolor timm ipykernel -c conda-forge -y
 conda install pytorch-cluster pytorch-scatter pytorch-sparse -c pyg -y
 pip install torch-geometric easydict opencv-python
 pip install open3d pyviz3d
