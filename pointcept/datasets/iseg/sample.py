@@ -78,7 +78,11 @@ if __name__ == "__main__":
         "-d", "--dataset_name", type=str, default="scannet", help="数据集名称"
     )
     parser.add_argument(
-        "-c", "--cfg_name", type=str, default="insseg-mask3d-spunet-0", help="配置文件名称"
+        "-c",
+        "--cfg_name",
+        type=str,
+        default="insseg-mask3d-spunet-0",
+        help="配置文件名称",
     )
     parser.add_argument("-n", "--sample_num", type=int, default=200, help="采样点数量")
     args = parser.parse_args()

@@ -336,7 +336,9 @@ class SpUNetBase_FPN(nn.Module):
                 x = x.replace_feature(torch.cat((x.features, skip.features), dim=1))
                 x = self.dec[s](x)
 
-        x = self.final(x)  # channels的最后一维, 同样也是特征的维度, 向num_classes的映射, SubMConv3d
+        x = self.final(
+            x
+        )  # channels的最后一维, 同样也是特征的维度, 向num_classes的映射, SubMConv3d
         if self.cls_mode:
             x = x.replace_feature(
                 scatter(x.features, x.indices[:, 0].long(), reduce="mean", dim=0)

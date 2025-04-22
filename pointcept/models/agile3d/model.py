@@ -67,7 +67,9 @@ class Agile3dSegmentor(nn.Module):
         )  # N_points x N_clicks, N_clicks x num_classes
 
         if not self.training:
-            masks_heatmap[masks_heatmap <= self.mask_threshold] = 0  # 非训练时对mask做截断
+            masks_heatmap[masks_heatmap <= self.mask_threshold] = (
+                0  # 非训练时对mask做截断
+            )
         new_logits = (
             masks_heatmap @ cls_logits
         )  # N_points x num_classes, 相当于point wise地叠加了多个mask

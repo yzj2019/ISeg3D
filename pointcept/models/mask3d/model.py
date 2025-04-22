@@ -90,7 +90,9 @@ class Mask3dSegmentor(nn.Module):
 
         # scene
         self.mask_feat_proj = nn.Linear(features_dims[-1], self.embedding_dim)
-        self.scene_norm = nn.LayerNorm(self.embedding_dim)  # 在 in_proj 后加一个 ln, 对齐特征
+        self.scene_norm = nn.LayerNorm(
+            self.embedding_dim
+        )  # 在 in_proj 后加一个 ln, 对齐特征
         self.in_proj_scene_layers = nn.ModuleList()
         for i in range(self.features_num):
             in_proj = nn.Linear(features_dims[i], self.embedding_dim)
@@ -312,7 +314,9 @@ class Mask3dSegmentor(nn.Module):
             dim=0,
         ).contiguous()
         # TODO 把背景类也作为instance纳入训练, 测试时通过 semantic proto 做 query 来去除, 不关心的点为 -1
-        pred_instance = mask_to_id(masks) - 1  # 预测的instance id, 互相排斥的 panoptic 结果
+        pred_instance = (
+            mask_to_id(masks) - 1
+        )  # 预测的instance id, 互相排斥的 panoptic 结果
         pred_instance[pred_instance == -1] = self.instance_ignore
         unique_pred_id = unique_id(
             pred_instance, self.instance_ignore

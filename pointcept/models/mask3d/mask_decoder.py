@@ -148,7 +148,9 @@ class Mask3dMaskDecoder(PointModule):
         # transformer blocks
         self.num_decoders = num_decoders
         self.shared_decoder = shared_decoder
-        n = num_decoders + shared_decoder * (1 - num_decoders)  # 共享参数, 则只设置一个 decoder
+        n = num_decoders + shared_decoder * (
+            1 - num_decoders
+        )  # 共享参数, 则只设置一个 decoder
         self.blocks = nn.ModuleList([nn.ModuleList() for _ in range(n)])
         for i in range(n):
             for j in range(self.features_num - 1 + self.enable_final_block):

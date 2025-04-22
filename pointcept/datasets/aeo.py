@@ -18,9 +18,9 @@ class AEODataset(DefaultDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         label_mapping = np.ones(41, dtype=int) * -1
-        label_mapping[
-            [0, 1, 3, 4, 13, 16, 19, 21, 22, 28, 29, 34, 36, 37, 38, 39]
-        ] = np.arange(16)
+        label_mapping[[0, 1, 3, 4, 13, 16, 19, 21, 22, 28, 29, 34, 36, 37, 38, 39]] = (
+            np.arange(16)
+        )
         self.label_mapping = label_mapping
 
     def get_data(self, idx):

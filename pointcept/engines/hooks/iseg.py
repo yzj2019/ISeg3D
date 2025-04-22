@@ -27,12 +27,12 @@ class ISegEvaluator(HookBase):
         self, semantic_ignore=-1, instance_ignore=-1, semantic_background=(0, 1)
     ):
         self.semantic_ignore = semantic_ignore
-        self.instance_ignore = (
-            instance_ignore  # 没用到, mask 在 get_target 中构建成了 [N_ins, N_point] 的形状
-        )
+        self.instance_ignore = instance_ignore  # 没用到, mask 在 get_target 中构建成了 [N_ins, N_point] 的形状
         self.semantic_background = semantic_background
         self.class_names = None  # update in before train
-        self.overlaps = np.append(np.arange(0.5, 0.95, 0.05), 0.25)  # ins seg 常用 IoU 阈值
+        self.overlaps = np.append(
+            np.arange(0.5, 0.95, 0.05), 0.25
+        )  # ins seg 常用 IoU 阈值
 
     def before_train(self):
         self.class_names = self.trainer.cfg.data.names
