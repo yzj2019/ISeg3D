@@ -1,4 +1,5 @@
 _base_ = ["../_base_/insseg_default_runtime.py"]
+wandb_project = "AGILE3D"
 
 # misc custom setting
 batch_size = 12  # bs: total bs in all gpus
@@ -39,7 +40,7 @@ matcher_cfg = dict(
 # 数据集相关, max_num_instance <= num_query <=topk_per_scene <= num_query * num_classes
 # model settings
 model = dict(
-    type="Mask3dSegmentor",
+    type="Agile3d-v1m1",
     pcd_backbone=dict(
         type="SpUNet-v1m1-fpn",
         in_channels=6,
@@ -50,7 +51,7 @@ model = dict(
         layers=(2, 3, 4, 6, 2, 2, 2, 2),
     ),
     mask_decoder=dict(
-        type="Mask3dMaskDecoder",
+        type="Agile3dMaskDecoder",
         transformer_block_cfg=dict(
             type="Mask3dDecoderBlock",
             embedding_dim=128,
@@ -130,14 +131,14 @@ test = dict(type="InsSegTester")
 evaluate = True
 epoch = 200  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
 eval_epoch = 100
-optimizer = dict(type="AdamW", lr=0.004, weight_decay=0.0001)
+optimizer = dict(type="AdamW", lr=0.001, weight_decay=0.0001)
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
-    pct_start=0.05,
+    pct_start=0.5,
     anneal_strategy="cos",
     div_factor=10.0,
-    final_div_factor=1000.0,
+    final_div_factor=1.0,
 )
 # pointcept.utils.optimizer 中会根据 param_dicts 来设置不同的 lr
 # param_dicts = [dict(keyword="block", lr=0.00001)]

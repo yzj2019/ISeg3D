@@ -42,6 +42,7 @@ hooks = [
     dict(type="PreciseEvaluator", test_last=False),
 ]
 
+# TODO 待更改
 # Trainer
 train = dict(type="DefaultTrainer")
 

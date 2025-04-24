@@ -27,5 +27,5 @@ from .sonata import *
 
 # interactive segmentation
 from .default_iseg import DefaultInteractiveSegmentor, DefaultISegEncoder
-from .agile3d import *
 from .mask3d import *
+from .agile3d import *

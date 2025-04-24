@@ -1,5 +1,5 @@
 """
-懒得再写一版纯点云的了, 就这样了
+agile3d v1m1, 直接照搬 mask3d select query
 """
 
 import torch
@@ -26,8 +26,8 @@ from pointcept.utils_iseg.ins_seg import (
 )
 
 
-@MODELS.register_module()
-class Mask3dSegmentor(nn.Module):
+@MODELS.register_module("Agile3d-v1m1")
+class Agile3d(nn.Module):
     def __init__(
         self,
         pcd_backbone=None,

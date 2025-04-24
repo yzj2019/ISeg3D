@@ -6,6 +6,7 @@ Please cite our work if the code is helpful to you.
 """
 
 import numpy as np
+import wandb
 import torch
 import torch.distributed as dist
 
@@ -44,6 +45,8 @@ class ISegEvaluator(HookBase):
                 if i not in (self.semantic_ignore,)
             ],
         }
+        if self.trainer.writer is not None and self.trainer.cfg.enable_wandb:
+            wandb.define_metric("val/*", step_metric="Epoch")
 
     def after_epoch(self):
         if self.trainer.cfg.evaluate:
@@ -150,6 +153,16 @@ class ISegEvaluator(HookBase):
             self.trainer.writer.add_scalar(
                 "val/cls_precision", cls_precision, current_epoch
             )
+            if self.trainer.cfg.enable_wandb:
+                wandb.log(
+                    {
+                        "Epoch": current_epoch,
+                        "val/loss": loss_avg,
+                        "val/masks_iou": masks_iou,
+                        "val/cls_precision": cls_precision,
+                    },
+                    step=wandb.run.step,
+                )
         self.trainer.logger.info("<<<<<<<<<<<<<<<<< End Evaluation <<<<<<<<<<<<<<<<<")
         self.trainer.comm_info["current_metric_value"] = masks_iou  # save for saver
         self.trainer.comm_info["current_metric_name"] = "masks_iou"  # save for saver
