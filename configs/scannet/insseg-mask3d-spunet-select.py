@@ -186,7 +186,6 @@ data = dict(
             dict(type="SphereCrop", point_max=102400, mode="random"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
-            # dict(type="ShufflePoint"),
             # 这里训练时将 semantic_background 纳入训练？
             dict(
                 type="InstanceParser",

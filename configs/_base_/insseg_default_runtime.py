@@ -49,4 +49,4 @@ hooks = [
 train = dict(type="InsSegTrainer")
 
 # Tester
-test = dict(type="InsSegTester")
+test = dict(type="InsSegTesterUser")

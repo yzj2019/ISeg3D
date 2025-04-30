@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from ..utils import collate_fn
 
 
-def collate_fn_iseg(batch, instance_ignore_label=-1):
+def collate_fn_iseg(batch, instance_ignore_label=-1, mix_prob=0):
     """instance reid for minibatch"""
     assert isinstance(
         batch[0], Mapping
@@ -27,4 +27,10 @@ def collate_fn_iseg(batch, instance_ignore_label=-1):
             ignore_mask = batch["instance"][l:r] != instance_ignore_label
             batch["instance"][l:r][ignore_mask] += id_max
             id_max = batch["instance"][l:r].max() + 1
+    # Mix3d (https://arxiv.org/pdf/2110.02210.pdf)
+    if random.random() < mix_prob:
+        if "offset" in batch.keys():
+            batch["offset"] = torch.cat(
+                [batch["offset"][1:-1:2], batch["offset"][-1].unsqueeze(0)], dim=0
+            )
     return batch

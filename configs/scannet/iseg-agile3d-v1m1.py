@@ -2,9 +2,9 @@ _base_ = ["../_base_/insseg_default_runtime.py"]
 wandb_project = "AGILE3D"
 
 # misc custom setting
-batch_size = 12  # bs: total bs in all gpus
+batch_size = 12 # bs: total bs in all gpus
 num_worker = 12
-mix_prob = 0.8
+mix_prob = 0.8   # mix3d
 empty_cache = False
 enable_amp = True
 
@@ -114,6 +114,7 @@ hooks = [
     dict(type="CheckpointLoader"),
     dict(type="IterationTimer", warmup_iter=2),
     dict(type="InformationWriter"),
+    # dict(type="WandbWatch", log="all", log_freq=10),
     dict(
         type="ISegEvaluator",
         semantic_ignore=semantic_ignore,
@@ -125,7 +126,7 @@ hooks = [
 ]
 
 train = dict(type="InsSegTrainer")
-test = dict(type="InsSegTester")
+test = dict(type="InsSegTesterUser")
 
 # scheduler settings
 evaluate = True
@@ -135,10 +136,10 @@ optimizer = dict(type="AdamW", lr=0.001, weight_decay=0.0001)
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
-    pct_start=0.5,
+    pct_start=0.05,
     anneal_strategy="cos",
     div_factor=10.0,
-    final_div_factor=1.0,
+    final_div_factor=1000.0,
 )
 # pointcept.utils.optimizer 中会根据 param_dicts 来设置不同的 lr
 # param_dicts = [dict(keyword="block", lr=0.00001)]
@@ -186,7 +187,6 @@ data = dict(
             dict(type="SphereCrop", point_max=102400, mode="random"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
-            # dict(type="ShufflePoint"),
             # 这里训练时将 semantic_background 纳入训练？
             dict(
                 type="InstanceParser",

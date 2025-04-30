@@ -218,6 +218,8 @@ class Agile3d(nn.Module):
             if self.training and len(idx) > self.num_query:
                 # 如果训练时采样点数大于 num_query, 则随机选部分
                 # TODO 有什么办法改变这个行为? 只是为了确保不超显存? 太不均匀
+                # TODO 在同一 id 内随机采样
+                # 好像跟采样方式有关，agile3d能保证每个batch的query point分散开，且类之间均匀
                 shuffle_idx = torch.randperm(len(idx))
                 idx = idx[shuffle_idx][: self.num_query]
                 gt_ins_id = gt_ins_id[shuffle_idx][: self.num_query]
