@@ -1,5 +1,7 @@
 #
 
+git clone --recurse-submodules https://github.com/yzj2019/ISeg3D.git
+
 see [envs.md](./docs/envs.md) and [dataset.md](./docs/dataset.md)
 
 TODO

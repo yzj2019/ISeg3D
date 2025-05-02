@@ -181,11 +181,11 @@ class WandbWatch(HookBase):
     TODO 可以只 watch 部分参数, 参考 utils/optimizer.py build_optimizer 的 param_dicts
     """
 
-    def __init__(self, log='all', log_freq=10):
+    def __init__(self, log="all", log_freq=10):
         self.log = log
         self.log_freq = log_freq
 
     def before_train(self):
-        if self.trainer.cfg.enable_wandb and comm.is_main_process():  
+        if self.trainer.cfg.enable_wandb and comm.is_main_process():
             # 只在主进程中执行 watch
             wandb.watch(self.trainer.model, log=self.log, log_freq=self.log_freq)

@@ -1,5 +1,7 @@
 ## datasets.iseg.sample
 
+点采样, 见 [./sample.md](./sample.md)
+
 ## datasets.iseg.transform
 
 ## datasets.iseg.utils

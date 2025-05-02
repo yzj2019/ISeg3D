@@ -5,21 +5,23 @@
 for RTX 3090, use cuda=12.1, pytorch=2.1.0, spconv-cu120, TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6".
 ```bash
 conda create --name iseg3d python=3.8.16 -y
+# conda create --name iseg3d python=3.11 -y
 conda activate iseg3d
 pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+conda install mamba -c conda-forge -y
 
 # pytorch
 conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 pytorch-cuda=12.1 -c pytorch -c nvidia -y
+# mamba install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
 
 # pointcept common
-conda install ninja -y
-conda install h5py pyyaml -c anaconda -y
-conda install sharedarray tensorboard tensorboardx wandb yapf addict einops scipy plyfile termcolor timm ipykernel -c conda-forge -y
-conda install pytorch-cluster pytorch-scatter pytorch-sparse -c pyg -y
+mamba install ninja open3d -y
+mamba install h5py pyyaml -c anaconda -y
+mamba install sharedarray tensorboard tensorboardx wandb yapf addict einops scipy plyfile termcolor timm ipykernel -c conda-forge -y
+mamba install pytorch-cluster pytorch-scatter pytorch-sparse -c pyg -y
 pip install torch-geometric easydict opencv-python
-pip install open3d pyviz3d
 
-# spconv
+# spconv, requires python <= 3.11, see https://github.com/traveller59/spconv#prebuilt
 pip install spconv-cu120
 
 # Flash attention

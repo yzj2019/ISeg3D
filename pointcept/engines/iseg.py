@@ -61,7 +61,7 @@ class InsSegTrainer(Trainer):
             num_workers=self.cfg.num_worker_per_gpu,
             sampler=train_sampler,
             collate_fn=partial(
-                collate_fn_iseg, 
+                collate_fn_iseg,
                 instance_ignore_label=self.cfg.instance_ignore_label,
                 mix_prob=self.cfg.mix_prob,
             ),
@@ -104,7 +104,7 @@ class InsSegTrainer(Trainer):
 @TESTERS.register_module()
 class InsSegTesterUser(TesterBase):
     """instance segmentation tester modified by user 强制要求 batch_size=1
-    
+
     Args:
         semantic_ignore: 忽略的语义类别索引
         instance_ignore: 忽略的实例类别索引
@@ -113,7 +113,8 @@ class InsSegTesterUser(TesterBase):
 
     def __init__(
         self,
-        semantic_ignore=-1, instance_ignore=-1, 
+        semantic_ignore=-1,
+        instance_ignore=-1,
         semantic_background=(0, 1),
         **kwargs,
     ):
@@ -125,17 +126,15 @@ class InsSegTesterUser(TesterBase):
         self.params = {
             "overlaps": self.overlaps,
             "valid_class_tags": [
-                i
-                for i in range(len(self.class_names))
-                if i not in semantic_background
+                i for i in range(len(self.class_names)) if i not in semantic_background
             ],
-            "semantic_background": semantic_background
+            "semantic_background": semantic_background,
         }
         self.overlaps = np.append(
             np.arange(0.5, 0.95, 0.05), 0.25
         )  # ins seg 常用 IoU 阈值
-        # TODO wandb init define_metric 
-    
+        # TODO wandb init define_metric
+
     def test(self):
         assert self.test_loader.batch_size == 1
         logger = get_root_logger()
