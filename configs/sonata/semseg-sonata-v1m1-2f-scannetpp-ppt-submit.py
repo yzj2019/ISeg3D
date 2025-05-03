@@ -450,7 +450,7 @@ data = dict(
                     ),
                 ],
                 test_mode=False,
-                loop=2,  # sampling weight
+                loop=1,  # sampling weight
             ),
         ],
     ),
