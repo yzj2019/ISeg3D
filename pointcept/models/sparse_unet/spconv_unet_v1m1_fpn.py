@@ -310,6 +310,7 @@ class SpUNetBase_FPN(nn.Module):
         self.feature_pyramid.reset()
 
         batch = offset2batch(offset)
+        # 96 是 padding 的尺寸, 经验值, 为卷积操作提供足够的边界缓冲区，防止边缘点的卷积操作越界
         sparse_shape = torch.add(torch.max(grid_coord, dim=0).values, 96).tolist()
         x = spconv.SparseConvTensor(
             features=feat,

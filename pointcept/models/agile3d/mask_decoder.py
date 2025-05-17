@@ -13,10 +13,9 @@ import warnings
 from typing import Tuple, Type, List, Dict
 from collections.abc import Sequence
 
-from .misc import FFNLayer, GenericMLP
-from .attention import (
+from ..mask3d.misc import FFNLayer, GenericMLP
+from ..mask3d.attention import (
     SqueezedCrossAttentionLayer,
-    SqueezedSelfAttentionLayer,
     BatchedSelfAttentionLayer,
 )
 

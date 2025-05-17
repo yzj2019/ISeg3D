@@ -25,7 +25,8 @@ from .masked_scene_contrast import *
 from .point_prompt_training import *
 from .sonata import *
 
-# interactive segmentation
+# interactive segmentation, 导入, 确保 registrition 成功
 from .default_iseg import DefaultInteractiveSegmentor, DefaultISegEncoder
 from .mask3d import *
+from .interobj import *
 from .agile3d import *

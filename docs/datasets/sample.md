@@ -5,8 +5,8 @@
 在根目录执行:
 
 ```bash
-python pointcept/datasets/iseg/sample.py -t fps -d scannet -c insseg-mask3d-spunet-0 -n 200
-python pointcept/datasets/iseg/sample.py -t fps -d kitti360 -c insseg-mask3d-spunet-0 -n 200
+python pointcept/datasets/iseg/sample.py -t fps -d scannet -c insseg-mask3d-spunet-select -n 100
+python pointcept/datasets/iseg/sample.py -t fps -d kitti360 -c insseg-mask3d-spunet-select -n 200
 ```
 
 参数:

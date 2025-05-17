@@ -106,6 +106,7 @@ def get_target(scene, ignore):
         ins_filter = instance == ins_id[i]
         sem_id[i] = semantic[ins_filter][0]
         batch_id[i] = batch[ins_filter][0]
+    # TODO 统一名称: ins, sem 代替 cls
     return Dict(
         ins_id=ins_id,
         masks=masks_target,

@@ -9,5 +9,17 @@ bash /tmp/resources/miniconda.sh -b -u -p ~/miniconda3
 # 初始化conda
 ~/miniconda3/bin/conda init bash
 
+# 换源
+# 1. 生成默认配置文件（如果不存在）
+conda config --set show_channel_urls yes
+# 2. 添加清华源（顺序影响优先级）
+conda config --add channels http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
+conda config --add channels http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r
+conda config --add channels http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/msys2
+conda config --add channels http://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/
+conda config --add channels http://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/
+# 3. 设置通道优先级策略
+conda config --set channel_priority flexible
+
 # 换base环境里的pip源
-pip config set global.index-url https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/
+pip config set global.index-url http://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/

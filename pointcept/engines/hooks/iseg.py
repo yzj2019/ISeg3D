@@ -53,6 +53,7 @@ class ISegEvaluator(HookBase):
             self.eval()
 
     def eval(self):
+        # TODO 计算一下各个类别的 metric
         self.trainer.logger.info(">>>>>>>>>>>>>>>> Start Evaluation >>>>>>>>>>>>>>>>")
         self.trainer.model.eval()
         for i, input_dict in enumerate(self.trainer.val_loader):

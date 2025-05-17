@@ -39,7 +39,7 @@ class SampledIndex2Mask(object):
 
 @TRANSFORMS.register_module()
 class InstanceCrop(object):
-    """将一部分 instance 整体 crop 掉, 改变 instance 的出现频率"""
+    """随机将一部分 instance 整体 crop 掉, 改变 instance 的出现频率"""
 
     def __init__(
         self,

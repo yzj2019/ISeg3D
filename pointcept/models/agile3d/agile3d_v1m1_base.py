@@ -9,9 +9,9 @@ import numpy as np
 import itertools
 from addict import Dict
 
-from .positional_embedding import PositionEmbeddingCoordsSine, PositionalEncoding3D
 from ..builder import MODELS, build_model
-from ..losses import build_criteria, LOSSES
+from ..losses import LOSSES
+from ..mask3d.positional_embedding import PositionEmbeddingCoordsSine
 
 from pointcept.models.utils.structure import Point  # 使用 Point 类, DefaultSegmentorv2
 from pointcept.utils_iseg.structure import Scene, Query
@@ -211,7 +211,7 @@ class Agile3d(nn.Module):
         elif self.query_type == "sample":
             idx = torch.where(pcd_dict["sampled_mask"])[0]
             gt_ins_id = self.scene.instance[idx]
-            # TODO 修改一下, 让 instance parser 不需要filt掉background
+            # TODO 将 semantic background 纳入训练
             # 去掉 semantic background
             idx = idx[gt_ins_id != self.instance_ignore]
             if self.training and len(idx) > self.num_query:
@@ -285,6 +285,9 @@ class Agile3d(nn.Module):
         elif self.query_type == "sample":
             # pred["matched_idx"], target["matched_idx"] = self.matcher(pred, target)
             pred_matched_ins_id = self.query.gt_ins_id
+            assert torch.isin(
+                pred_matched_ins_id, target["ins_id"]
+            ).all(), "pred_matched_ins_id must be in target['ins_id']"
             pred["matched_idx"] = torch.arange(
                 pred_matched_ins_id.shape[0], device=pred_matched_ins_id.device
             )

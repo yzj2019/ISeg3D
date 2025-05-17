@@ -156,7 +156,7 @@ data = dict(
         split="train",
         data_root=data_root,
         transform=[
-            dict(type="Copy", keys_dict={"sampled_idx_fps": "sampled_index"}),
+            dict(type="Copy", keys_dict={"sampled_idx_fps_100": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(
                 type="RandomDropout", dropout_ratio=0.2, dropout_application_ratio=0.2
@@ -206,7 +206,7 @@ data = dict(
         split="val",
         data_root=data_root,
         transform=[
-            dict(type="Copy", keys_dict={"sampled_idx_fps": "sampled_index"}),
+            dict(type="Copy", keys_dict={"sampled_idx_fps_100": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(
                 type="GridSample",
@@ -237,7 +237,7 @@ data = dict(
         split="val",
         data_root=data_root,
         transform=[
-            dict(type="Copy", keys_dict={"sampled_idx_fps": "sampled_index"}),
+            dict(type="Copy", keys_dict={"sampled_idx_fps_100": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(type="NormalizeColor"),
         ],

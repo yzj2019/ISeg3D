@@ -67,7 +67,7 @@ docker run -itd \
     -p $UdpBindPort:9993 \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v /sys/fs/cgroup:/sys/fs/cgroup \
-    -v $WorkSpaceBind:/data \
+    -v $WorkSpaceBind:/data:rw \
     $IMAGE
 
 # initialize environment
