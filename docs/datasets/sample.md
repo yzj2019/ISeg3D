@@ -5,9 +5,8 @@
 在根目录执行:
 
 ```bash
-python pointcept/datasets/iseg/sample.py -t fps -d scannet -c insseg-mask3d-spunet-select -n 100
-python pointcept/datasets/iseg/sample.py -t fps -d kitti360 -c insseg-mask3d-spunet-select -n 200
-```
+python pointcept/datasets/iseg/sample.py -t fps -d scannet -c iseg-agile3d-v1m1 -n 100
+python pointcept/datasets/iseg/sample.py -t fps -d kitti360 -c iseg-agile3d-v1m1 -n 100
 
 参数:
 - `-t`: sample 类型

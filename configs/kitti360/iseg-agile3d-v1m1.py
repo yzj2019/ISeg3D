@@ -1,49 +1,31 @@
+from pointcept.datasets.preprocessing.kitti360.helpers.labels import trainId2label
+
+KITTI360_CLASS_LABELS = {i: trainId2label[i].name for i in trainId2label.keys()}
+
 _base_ = ["../_base_/insseg_default_runtime.py"]
-wandb_project = "Mask3D"
+wandb_project = "AGILE3D"
 
 # misc custom setting
 batch_size = 12  # bs: total bs in all gpus
 num_worker = 12
-mix_prob = 0.8
+mix_prob = 0.8  # mix3d
 empty_cache = False
 enable_amp = True
 
 num_classes = 20
-class_names = [
-    "wall",
-    "floor",
-    "cabinet",
-    "bed",
-    "chair",
-    "sofa",
-    "table",
-    "door",
-    "window",
-    "bookshelf",
-    "picture",
-    "counter",
-    "desk",
-    "curtain",
-    "refridgerator",
-    "shower curtain",
-    "toilet",
-    "sink",
-    "bathtub",
-    "otherfurniture",
-]
 semantic_ignore = -1
 instance_ignore = -1
 semantic_background = (0, 1)
 matcher_cfg = dict(
-    cost_class=1.0, cost_focal=13.0, cost_dice=13.0, instance_ignore=instance_ignore
+    cost_class=1.0, cost_focal=2.0, cost_dice=2.0, instance_ignore=instance_ignore
 )
 # 数据集相关, max_num_instance <= num_query <=topk_per_scene <= num_query * num_classes
 # model settings
 model = dict(
-    type="Mask3dSegmentor",
+    type="Agile3d-v1m1",
     pcd_backbone=dict(
         type="SpUNet-v1m1-fpn",
-        in_channels=6,
+        in_channels=3,
         # 0 表示不映射到 num_classes
         num_classes=0,
         channels=(32, 64, 128, 256, 256, 128, 96, 96),
@@ -51,7 +33,7 @@ model = dict(
         layers=(2, 3, 4, 6, 2, 2, 2, 2),
     ),
     mask_decoder=dict(
-        type="Mask3dMaskDecoder",
+        type="Agile3dMaskDecoder",
         transformer_block_cfg=dict(
             type="Mask3dDecoderBlock",
             embedding_dim=128,
@@ -84,14 +66,14 @@ model = dict(
                 type="BinaryCrossEntropyLoss",
                 reduction="mean",
                 logits=True,
-                loss_weight=13.0,
+                loss_weight=2.0,
             ),
             dict(
                 type="BinaryDiceLoss",
                 exponent=1,
                 reduction="mean",
                 logits=True,
-                loss_weight=13.0,
+                loss_weight=2.0,
             ),
         ],
     ),
@@ -101,7 +83,7 @@ model = dict(
     aux=True,
     features_dims=(256, 256, 128, 96, 96),
     num_query=100,
-    query_type="learn",
+    query_type="sample",
     mask_threshold=0.5,
     topk_per_scene=200,
     semantic_ignore=semantic_ignore,
@@ -114,49 +96,51 @@ hooks = [
     dict(type="CheckpointLoader"),
     dict(type="IterationTimer", warmup_iter=2),
     dict(type="InformationWriter"),
+    # dict(type="WandbWatch", log="all", log_freq=10),
     dict(
         type="ISegEvaluator",
         semantic_ignore=semantic_ignore,
         instance_ignore=instance_ignore,
         semantic_background=semantic_background,
     ),
-    dict(type="CheckpointSaver", save_freq=None),
+    dict(type="CheckpointSaver", save_freq=10),
     dict(type="PreciseEvaluator", test_last=False),
 ]
 
 train = dict(type="InsSegTrainer")
-test = dict(type="InsSegTester")
+test = dict(type="InsSegTesterUser")
 
 # scheduler settings
 evaluate = True
-epoch = 1200  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
+epoch = 200  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
 eval_epoch = 100
-optimizer = dict(type="AdamW", lr=0.0004, weight_decay=0.0001)
+optimizer = dict(type="AdamW", lr=0.001, weight_decay=0.0001)
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
     pct_start=0.5,
     anneal_strategy="cos",
     div_factor=10.0,
-    final_div_factor=10.0,
+    final_div_factor=1.0,
 )
 # pointcept.utils.optimizer 中会根据 param_dicts 来设置不同的 lr
 # param_dicts = [dict(keyword="block", lr=0.00001)]
 
 # dataset settings
-dataset_type = "ScanNetDataset"
-data_root = "data/scannet"
+dataset_type = "Kitti360Dataset"
+data_root = "data/kitti360"
 
 data = dict(
     num_classes=num_classes,
     ignore_index=semantic_ignore,
-    names=class_names,
-    ext_valid_assets=[],
+    names=KITTI360_CLASS_LABELS,
+    ext_valid_assets=["sampled_idx_fps_100"],
     train=dict(
         type=dataset_type,
         split="train",
         data_root=data_root,
         transform=[
+            dict(type="Copy", keys_dict={"sampled_idx_fps_100": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(
                 type="RandomDropout", dropout_ratio=0.2, dropout_application_ratio=0.2
@@ -182,6 +166,7 @@ data = dict(
                 mode="train",
                 return_grid_coord=True,
             ),
+            dict(type="SampledIndex2Mask"),
             dict(type="SphereCrop", point_max=102400, mode="random"),
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
@@ -194,8 +179,8 @@ data = dict(
             dict(type="ToTensor"),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "segment", "instance"),
-                feat_keys=("color", "normal"),
+                keys=("coord", "grid_coord", "segment", "instance", "sampled_mask"),
+                feat_keys=("color",),
             ),
         ],
         test_mode=False,
@@ -205,6 +190,7 @@ data = dict(
         split="val",
         data_root=data_root,
         transform=[
+            dict(type="Copy", keys_dict={"sampled_idx_fps_100": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(
                 type="GridSample",
@@ -213,6 +199,8 @@ data = dict(
                 mode="train",
                 return_grid_coord=True,
             ),
+            dict(type="SampledIndex2Mask"),
+            dict(type="SphereCrop", point_max=102400, mode="random"),  # TODO 暂时 crop
             dict(type="CenterShift", apply_z=False),
             dict(type="NormalizeColor"),
             dict(
@@ -223,8 +211,8 @@ data = dict(
             dict(type="ToTensor"),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "segment", "instance"),
-                feat_keys=("color", "normal"),
+                keys=("coord", "grid_coord", "segment", "instance", "sampled_mask"),
+                feat_keys=("color",),
             ),
         ],
         test_mode=False,
@@ -234,6 +222,7 @@ data = dict(
         split="val",
         data_root=data_root,
         transform=[
+            dict(type="Copy", keys_dict={"sampled_idx_fps_100": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(type="NormalizeColor"),
         ],
@@ -243,12 +232,13 @@ data = dict(
                 type="GridSample",
                 grid_size=0.02,
                 hash_type="fnv",
-                mode="test",
+                mode="train",  # 注意这里改成 train type, 不用那么多重复的 fragment
                 return_grid_coord=True,
                 return_inverse=True,
             ),
             crop=None,
             post_transform=[
+                dict(type="SampledIndex2Mask"),
                 dict(type="CenterShift", apply_z=False),
                 dict(
                     type="InstanceParser",
@@ -258,8 +248,15 @@ data = dict(
                 dict(type="ToTensor"),
                 dict(
                     type="Collect",
-                    keys=("coord", "grid_coord", "index", "segment", "instance"),
-                    feat_keys=("color", "normal"),
+                    keys=(
+                        "coord",
+                        "grid_coord",
+                        "inverse",
+                        "segment",
+                        "instance",
+                        "sampled_mask",
+                    ),
+                    feat_keys=("color",),
                 ),
             ],
             aug_transform=[

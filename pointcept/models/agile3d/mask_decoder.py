@@ -283,7 +283,6 @@ class Agile3dMaskDecoder(PointModule):
             query.feat.shape[0],
             last_masks_logits.shape[0],
         )  # 默认 query 中新的靠后
-        assert N_query >= N_query_last, f"assert {N_query} >= {N_query_last}"
         if N_query > N_query_last:
             N_query_new = N_query - N_query_last
             masks_padding, cls_padding = self.head(
@@ -295,6 +294,11 @@ class Agile3dMaskDecoder(PointModule):
             cls_logits = torch.cat(
                 [last_cls_logits, cls_padding], dim=0
             )  # (N_query, num_classes)
+        elif N_query == N_query_last:
+            masks_logits = last_masks_logits
+            cls_logits = last_cls_logits
+        else:
+            raise ValueError(f"assert {N_query} >= {N_query_last}")
 
         pred_init = {
             "masks_logits": masks_logits.contiguous(),

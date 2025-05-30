@@ -1,5 +1,5 @@
 
-
+-[ ] 现在的 InstanceParser 和 DefaultDataset.prepare_test_data() 有冲突，所以暂时只用 train mode
 
 # GridSample 类详细分析
 

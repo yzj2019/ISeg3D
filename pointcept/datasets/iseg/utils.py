@@ -9,6 +9,14 @@ import random
 import torch
 from collections.abc import Mapping
 from ..utils import collate_fn
+from ..builder import DATASETS
+
+
+def build_dataset_iseg(cfg, ext_valid_assets=[]):
+    """Build datasets with extra valid assets."""
+    dataset = DATASETS.build(cfg)
+    dataset.VALID_ASSETS = dataset.VALID_ASSETS + ext_valid_assets
+    return dataset
 
 
 def collate_fn_iseg(batch, instance_ignore_label=-1, mix_prob=0):

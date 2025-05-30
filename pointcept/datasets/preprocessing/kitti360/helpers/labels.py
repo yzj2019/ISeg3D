@@ -58,7 +58,7 @@ Label = namedtuple(
 # Note that many IDs are ignored in evaluation and thus you never need to predict these!
 
 labels = [
-    #       name                     id    kittiId,    trainId   category            catId     hasInstances   ignoreInEval   ignoreInInst   color
+    # name  id  kittiId  trainId  category  catId  hasInstances  ignoreInEval  ignoreInInst  color
     Label("unlabeled", 0, -1, -1, "void", 0, False, True, True, (0, 0, 0)),
     Label("ego vehicle", 1, -1, -1, "void", 0, False, True, True, (0, 0, 0)),
     Label("rectification border", 2, -1, -1, "void", 0, False, True, True, (0, 0, 0)),

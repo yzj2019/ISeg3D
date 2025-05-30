@@ -151,6 +151,7 @@ data = dict(
     num_classes=num_classes,
     ignore_index=semantic_ignore,
     names=class_names,
+    ext_valid_assets=["sampled_idx_fps_100"],
     train=dict(
         type=dataset_type,
         split="train",

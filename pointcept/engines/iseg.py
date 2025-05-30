@@ -17,7 +17,7 @@ from .train import Trainer, TRAINERS
 from .test import TesterBase, TESTERS
 from .defaults import worker_init_fn
 import pointcept.utils.comm as comm
-from pointcept.datasets import build_dataset, collate_fn_iseg
+from pointcept.datasets import build_dataset_iseg, collate_fn_iseg
 from pointcept.utils.logger import get_root_logger
 from pointcept.utils.misc import AverageMeter
 
@@ -30,12 +30,9 @@ class InsSegTrainer(Trainer):
         super().__init__(cfg)
 
     def build_train_loader(self):
-        train_data = build_dataset(self.cfg.data.train)
-        # TODO 修改 VALID_ASSETS index_valid_keys(可选), 添加 sampled_index
-        train_data.VALID_ASSETS = train_data.VALID_ASSETS + [
-            "sampled_idx_fps",
-            "sampled_idx_rand",
-        ]
+        train_data = build_dataset_iseg(
+            self.cfg.data.train, self.cfg.data.ext_valid_assets
+        )
         if comm.get_world_size() > 1:
             train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
         else:
@@ -75,12 +72,9 @@ class InsSegTrainer(Trainer):
     def build_val_loader(self):
         val_loader = None
         if self.cfg.evaluate:
-            val_data = build_dataset(self.cfg.data.val)
-            # TODO 修改 VALID_ASSETS index_valid_keys(可选), 添加 sampled_index
-            val_data.VALID_ASSETS = val_data.VALID_ASSETS + [
-                "sampled_idx_fps",
-                "sampled_idx_rand",
-            ]
+            val_data = build_dataset_iseg(
+                self.cfg.data.val, self.cfg.data.ext_valid_assets
+            )
             if comm.get_world_size() > 1:
                 val_sampler = torch.utils.data.distributed.DistributedSampler(val_data)
             else:

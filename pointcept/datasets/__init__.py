@@ -25,3 +25,4 @@ from .dataloader import MultiDatasetDataloader
 
 # iseg
 from .iseg import *
+from .kitti360 import Kitti360Dataset

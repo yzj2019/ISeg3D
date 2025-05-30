@@ -4,21 +4,21 @@
 
 for RTX 3090, use cuda=12.1, pytorch=2.1.0, spconv-cu120, TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6".
 ```bash
-conda create --name iseg3d python=3.8.16 -y
-# conda create --name iseg3d python=3.11 -y
+# conda create --name iseg3d python=3.8.16 -y
+conda create --name iseg3d python=3.11 -y
 conda activate iseg3d
 pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 conda install mamba -c conda-forge -y
 
 # pytorch
-conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 pytorch-cuda=12.1 -c pytorch -c nvidia -y
-# mamba install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
+# conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 pytorch-cuda=12.1 -c pytorch -c nvidia -y
+mamba install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
 
 # pointcept common
 mamba install ninja open3d -y
 mamba install h5py pyyaml -c anaconda -y
-mamba install sharedarray tensorboard tensorboardx wandb yapf addict einops scipy plyfile termcolor timm ipykernel -c conda-forge -y
-mamba install pytorch-cluster pytorch-scatter pytorch-sparse -c pyg -y
+mamba install sharedarray tensorboard tensorboardx wandb yapf addict einops scipy plyfile termcolor timm ipykernel matplotlib -c conda-forge -y
+conda install pytorch-cluster pytorch-scatter pytorch-sparse -c pyg -y
 pip install torch-geometric easydict opencv-python
 
 # spconv, requires python <= 3.11, see https://github.com/traveller59/spconv#prebuilt
@@ -90,3 +90,10 @@ TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6" python  setup.py install
 ```
 - e.g. 7.5: RTX 3000; 8.0: A100; 8.6: 3090
 - You should modify this to match your GPU compute capability, see https://developer.nvidia.cn/zh-cn/cuda-gpus#compute
+
+## 3. 代码格式化
+```bash
+conda create -n black python=3.12 -y
+conda activate black
+pip install black[colorama]==25.1.0
+```

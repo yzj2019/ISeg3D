@@ -1,3 +1,3 @@
-from .utils import collate_fn_iseg
+from .utils import *
 from .sample import *
 from .transform import *
