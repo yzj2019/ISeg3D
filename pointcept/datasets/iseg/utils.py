@@ -10,6 +10,7 @@ import torch
 from collections.abc import Mapping
 from ..utils import collate_fn
 from ..builder import DATASETS
+from ..defaults import DefaultDataset
 
 
 def build_dataset_iseg(cfg, ext_valid_assets=[]):
@@ -17,6 +18,27 @@ def build_dataset_iseg(cfg, ext_valid_assets=[]):
     dataset = DATASETS.build(cfg)
     dataset.VALID_ASSETS = dataset.VALID_ASSETS + ext_valid_assets
     return dataset
+
+
+"""
+data 中, 最多是二级结构
+例如: data/kitti360/train/2013_05_28_drive_0000_sync/0000000002_0000000385
+此时 data_dict["split"] = "2013_05_28_drive_0000_sync"
+data_dict["name"] = "0000000002_0000000385"
+因此, 需要根据 split 和 name 来获取数据
+"""
+
+
+def get_idx_by_name(dataset: DefaultDataset, split: str, name: str):
+    """get data idx by name and split
+    dataset: DefaultDataset
+    split: str
+    name: str
+    """
+    for idx in range(len(dataset)):
+        if dataset.get_data_name(idx) == name and dataset.get_split_name(idx) == split:
+            return idx
+    raise ValueError(f"data {name} not found in {split} split")
 
 
 def collate_fn_iseg(batch, instance_ignore_label=-1, mix_prob=0):

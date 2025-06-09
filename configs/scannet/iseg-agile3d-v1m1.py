@@ -132,7 +132,7 @@ test = dict(type="InsSegTesterUser")
 evaluate = True
 epoch = 1000  # 是eval_epoch的整数倍, 通过 cfg.data.train.loop 来实现拼接多个数据循环
 eval_epoch = 1000
-optimizer = dict(type="AdamW", lr=0.0001, weight_decay=0.0001)
+optimizer = dict(type="AdamW", lr=0.0002, weight_decay=0.0001)
 scheduler = dict(
     type="OneCycleLR",
     max_lr=optimizer["lr"],
@@ -152,7 +152,7 @@ data = dict(
     num_classes=num_classes,
     ignore_index=semantic_ignore,
     names=class_names,
-    ext_valid_assets=["sampled_idx_fps_100"],
+    ext_valid_assets=["sampled_idx_fps_100", "sampled_idx_center"],
     train=dict(
         type=dataset_type,
         split="train",
@@ -163,7 +163,8 @@ data = dict(
             dict(
                 type="RandomDropout", dropout_ratio=0.2, dropout_application_ratio=0.2
             ),
-            # dict(type="RandomRotateTargetAngle", angle=(1/2, 1, 3/2), center=[0, 0, 0], axis="z", p=0.75),
+            # dict(type="RandomRotateTargetAngle",
+            #       angle=(1/2, 1, 3/2), center=[0, 0, 0], axis="z", p=0.75),
             dict(type="RandomRotate", angle=[-1, 1], axis="z", center=[0, 0, 0], p=0.5),
             dict(type="RandomRotate", angle=[-1 / 64, 1 / 64], axis="x", p=0.5),
             dict(type="RandomRotate", angle=[-1 / 64, 1 / 64], axis="y", p=0.5),
@@ -211,11 +212,12 @@ data = dict(
             dict(type="Copy", keys_dict={"sampled_idx_fps_100": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
             dict(
-                type="GridSample",
+                type="GridSampleISeg",
                 grid_size=0.02,
                 hash_type="fnv",
                 mode="train",
                 return_grid_coord=True,
+                return_inverse=True,
             ),
             dict(type="SampledIndex2Mask"),
             dict(type="CenterShift", apply_z=False),
@@ -228,7 +230,14 @@ data = dict(
             dict(type="ToTensor"),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "segment", "instance", "sampled_mask"),
+                keys=(
+                    "coord",
+                    "grid_coord",
+                    "inverse",
+                    "segment",
+                    "instance",
+                    "sampled_mask",
+                ),
                 feat_keys=("color", "normal"),
             ),
         ],
@@ -239,46 +248,38 @@ data = dict(
         split="val",
         data_root=data_root,
         transform=[
-            dict(type="Copy", keys_dict={"sampled_idx_fps_100": "sampled_index"}),
+            dict(type="Copy", keys_dict={"sampled_idx_center": "sampled_index"}),
             dict(type="CenterShift", apply_z=True),
-            dict(type="NormalizeColor"),
-        ],
-        test_mode=True,
-        test_cfg=dict(
-            voxelize=dict(
-                type="GridSample",
+            dict(
+                type="GridSampleISeg",
                 grid_size=0.02,
                 hash_type="fnv",
-                mode="train",  # 注意这里改成 train type, 不用那么多重复的 fragment
+                mode="train",
                 return_grid_coord=True,
                 return_inverse=True,
             ),
-            crop=None,
-            post_transform=[
-                dict(type="SampledIndex2Mask"),
-                dict(type="CenterShift", apply_z=False),
-                dict(
-                    type="InstanceParser",
-                    segment_ignore_index=(semantic_ignore, *semantic_background),
-                    instance_ignore_index=instance_ignore,
+            dict(type="SampledIndex2Mask"),
+            dict(type="CenterShift", apply_z=False),
+            dict(type="NormalizeColor"),
+            dict(
+                type="InstanceParser",
+                segment_ignore_index=(semantic_ignore, *semantic_background),
+                instance_ignore_index=instance_ignore,
+            ),
+            dict(type="ToTensor"),
+            dict(
+                type="Collect",
+                keys=(
+                    "coord",
+                    "grid_coord",
+                    "inverse",
+                    "segment",
+                    "instance",
+                    "sampled_mask",
                 ),
-                dict(type="ToTensor"),
-                dict(
-                    type="Collect",
-                    keys=(
-                        "coord",
-                        "grid_coord",
-                        "inverse",
-                        "segment",
-                        "instance",
-                        "sampled_mask",
-                    ),
-                    feat_keys=("color", "normal"),
-                ),
-            ],
-            aug_transform=[
-                [dict(type="RandomFlip", p=1)],
-            ],
-        ),
+                feat_keys=("color", "normal"),
+            ),
+        ],
+        test_mode=False,
     ),
 )

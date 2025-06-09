@@ -41,8 +41,10 @@ def sample(
             # set not ignore any point
             ignore_mask[:] = True
         sampled_idx = sample_func(data_dict, sample_num, ignore_mask)
-        bg_name = "bg" if not len(semantic_background) else ""
+        bg_name = "_bg" if not len(semantic_background) else ""
         file_name = f"sampled_idx_{sample_type}_{sample_num}{bg_name}.npy"
+        if sample_type == "center":
+            file_name = f"sampled_idx_{sample_type}.npy"
         np.save(os.path.join(save_dir, file_name), sampled_idx)
 
 
@@ -125,7 +127,7 @@ def voxel_sampling(coords, sample_num, mode="center"):
 
 
 def instance_sampling(data_dict, sample_num, ignore_mask):
-    """逐个instance体素采样，每个体素选择最接近中心的点"""
+    """逐个instance做体素采样，每个体素选择最接近体素中心的点"""
     instance_ids = unique_id(torch.tensor(data_dict["instance"]))
     sampled_idx = []
     sample_num_per_ins = sample_num // len(instance_ids)
@@ -149,6 +151,28 @@ def instance_sampling(data_dict, sample_num, ignore_mask):
     return sampled_idx.cpu().numpy()
 
 
+def ins_center_sampling(data_dict, sample_num, ignore_mask):
+    """逐个instance选择instance的中心点"""
+    coord = data_dict["coord"]
+    instance = data_dict["instance"]
+    instance_ids = np.unique(instance[ignore_mask])
+    sampled_idx = []
+    for instance_id in instance_ids:
+        # 获取实例点的掩码和坐标
+        instance_mask = instance == instance_id
+        instance_mask = instance_mask & ignore_mask
+        ins_idx = np.where(instance_mask)[0]
+        ins_coords = coord[instance_mask]
+        ins_center_coord = ins_coords.mean(0)
+        distance = ((ins_center_coord - ins_coords) ** 2).sum(1)
+        center_local_idx = distance.argmin()
+        # 转换回原始点云索引
+        center_global_idx = ins_idx[center_local_idx]
+        sampled_idx.append(center_global_idx)
+    sampled_idx = np.array(sampled_idx)
+    return sampled_idx
+
+
 SAMPLE_TYPE = {
     "fps": {
         "func": fps_sampling,
@@ -157,6 +181,10 @@ SAMPLE_TYPE = {
     "rand": {
         "func": random_sampling,
         "name": "random",
+    },
+    "center": {
+        "func": ins_center_sampling,
+        "name": "instance center",
     },
 }
 
@@ -172,7 +200,7 @@ if __name__ == "__main__":
         "--cfg-name",
         type=str,
         default="insseg-mask3d-spunet-0",
-        help="配置文件名称",
+        help="配置文件名称, 需要保证data配置正确、semantic_ignore instance_ignore semantic_background",
     )
     parser.add_argument("-n", "--sample-num", type=int, default=200, help="采样点数量")
     parser.add_argument(
@@ -193,6 +221,7 @@ if __name__ == "__main__":
         "sem",
         "ins",
         "super",
+        "center",  # instance centers
     ], f"unsupported sample type {sample_type}"
     assert dataset_name in [
         "scannet",

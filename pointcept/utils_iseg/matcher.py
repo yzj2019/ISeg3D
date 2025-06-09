@@ -173,6 +173,34 @@ class HungarianMatcher(nn.Module):
         return "\n".join(lines)
 
 
+def remap_instance_id(instance, pred_instance):
+    """按 IoU 将 pred_instance 的id映射为 instance 的id, 输入均为 numpy 数组"""
+    instance = instance.astype(np.int32)
+    pred_instance = pred_instance.astype(np.int32)
+    # 获取唯一的 instance ID
+    gt_ids = np.unique(instance)
+    pred_ids = np.unique(pred_instance)
+
+    # 计算 IoU 矩阵
+    iou_matrix = np.zeros((len(gt_ids), len(pred_ids)))
+    for i, gt_id in enumerate(gt_ids):
+        for j, pred_id in enumerate(pred_ids):
+            intersection = np.sum((instance == gt_id) & (pred_instance == pred_id))
+            union = np.sum((instance == gt_id) | (pred_instance == pred_id))
+            iou_matrix[i, j] = intersection / (union + 1e-8)
+
+    # 使用匈牙利算法进行匹配
+    gt_indices, pred_indices = linear_sum_assignment(-iou_matrix)
+    # 创建 ID 映射字典
+    id_mapping = {pred_ids[j]: gt_ids[i] for i, j in zip(gt_indices, pred_indices)}
+    # id_mapping[0] = 0  # 背景类映射
+    # 重映射预测的 instance ID
+    remapped_pred = np.zeros_like(pred_instance)
+    for pred_id, gt_id in id_mapping.items():
+        remapped_pred[pred_instance == pred_id] = gt_id
+    return remapped_pred
+
+
 if __name__ == "__main__":
     # 创建匹配器实例
     matcher = HungarianMatcher(cost_class=1.0, cost_focal=1.0, cost_dice=1.0)
