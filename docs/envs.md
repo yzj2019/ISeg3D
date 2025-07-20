@@ -4,28 +4,27 @@
 
 for RTX 3090, use cuda=12.1, pytorch=2.1.0, spconv-cu120, TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6".
 ```bash
-# conda create --name iseg3d python=3.8.16 -y
-conda create --name iseg3d python=3.11 -y
-conda activate iseg3d
+conda create -n cu121_torch251 python=3.11 -y
+conda activate cu121_torch251
 pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
-conda install mamba -c conda-forge -y
 
 # pytorch
-# conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 pytorch-cuda=12.1 -c pytorch -c nvidia -y
-mamba install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
 
 # pointcept common
-mamba install ninja open3d -y
-mamba install h5py pyyaml -c anaconda -y
-mamba install sharedarray tensorboard tensorboardx wandb yapf addict einops scipy plyfile termcolor timm ipykernel matplotlib -c conda-forge -y
-conda install pytorch-cluster pytorch-scatter pytorch-sparse -c pyg -y
-pip install torch-geometric easydict opencv-python
+conda install ninja -y
+conda install h5py pyyaml -c anaconda -y
+conda install sharedarray tensorboard tensorboardx wandb yapf addict einops scipy plyfile termcolor timm ipykernel matplotlib -c conda-forge -y
+
+# pyg, specify torch and cuda version
+pip install open3d torch-geometric easydict opencv-python
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.5.0+cu121.html
 
 # spconv, requires python <= 3.11, see https://github.com/traveller59/spconv#prebuilt
 pip install spconv-cu120
 
 # Flash attention
-MAX_JOBS=4 pip install flash-attn --no-build-isolation
+MAX_JOBS=4 pip install flash-attn==2.3.0 --no-build-isolation
 
 # pointops
 cd libs/pointops
@@ -53,6 +52,15 @@ Choose version here: https://pytorch.org/get-started/previous-versions/ , with `
 ```bash
 conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia -y
 conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 pytorch-cuda=11.8 -c pytorch -c nvidia -y
+```
+
+### 2.2. PyG
+
+https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
+
+```bash
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.0.0+cu117.html
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
 ```
 
 ### 2.2. SpConv
