@@ -72,7 +72,7 @@ def plot_curves(
     plt.xlabel(setting_map["xlabel"])
     plt.ylabel(setting_map["ylabel"])
     plt.title(setting_map["title"])
-    plt.grid(True, linestyle=":", alpha=0.5)
+    plt.grid(True, linestyle=":", alpha=0.8)
     plt.tight_layout()
     if "save_path" in setting_map:
         save_path = setting_map["save_path"]

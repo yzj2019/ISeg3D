@@ -121,7 +121,7 @@ hooks = [
         instance_ignore=instance_ignore,
         semantic_background=semantic_background,
     ),
-    dict(type="CheckpointSaver", save_freq=25),
+    dict(type="CheckpointSaver", save_freq=100),
     dict(type="PreciseEvaluator", test_last=False),
 ]
 
