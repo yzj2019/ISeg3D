@@ -21,7 +21,7 @@ pip install open3d torch-geometric easydict opencv-python
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.5.0+cu121.html
 
 # spconv, requires python <= 3.11, see https://github.com/traveller59/spconv#prebuilt
-pip install spconv-cu120
+pip install spconv-cu121
 
 # Flash attention
 MAX_JOBS=4 pip install flash-attn==2.3.0 --no-build-isolation
@@ -39,6 +39,9 @@ cd ../..
 cd libs/scannet_segmentator
 pip install .
 cd ../..
+
+# for pytorch <= 2.1.*, downgrade numpy
+# conda install numpy=1.26.4 -y
 ```
 
 ## 2. Each Part
