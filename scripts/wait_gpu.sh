@@ -58,6 +58,8 @@ while true; do
         echo "[wait_gpu] GPU(s) $GPU_IDS free, starting training... $(date)"
         source ~/.bashrc
         conda activate $CONDA_ENV
+        # 不得已, wandb 网络有问题
+        export WANDB_MODE=offline
         # nohup 训练命令
         CUDA_VISIBLE_DEVICES=$GPU_IDS nohup sh scripts/train.sh -g ${#GPU_ARRAY[@]} -d $DATASET -c $CONFIG -n $SAVE_DIR > /dev/null 2>&1 &
         # 获取当前机器名作为标题, 发送邮件
