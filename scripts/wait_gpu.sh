@@ -35,7 +35,7 @@ IFS=',' read -ra GPU_ARRAY <<< "$GPU_IDS"
 # 获取当前机器名作为标题, 发送邮件
 python tools/send_mail.py -t $QQ_EMAIL_USER \
     -s "[$(hostname)] Waiting for GPU(s) $GPU_IDS to be free..." \
-    -b "<b>[$(hostname)]:</b> -g ${#GPU_ARRAY[@]} -d $DATASET -c $CONFIG -n $SAVE_DIR<br><p><strong>时间:</strong> $(date)</p>"
+    -b "<b>[$(hostname)]:</b> -g $GPU_IDS -d $DATASET -c $CONFIG -n $SAVE_DIR<br><p><strong>时间:</strong> $(date)</p>"
 
 while true; do
     BUSY=0
@@ -65,7 +65,7 @@ while true; do
         # 获取当前机器名作为标题, 发送邮件
         python tools/send_mail.py -t $QQ_EMAIL_USER \
             -s "[$(hostname)] Training task submitted" \
-            -b "<b>[$(hostname)]:</b> -g ${#GPU_ARRAY[@]} -d $DATASET -c $CONFIG -n $SAVE_DIR<br><p><strong>时间:</strong> $(date)</p>"
+            -b "<b>[$(hostname)]:</b> -g $GPU_IDS -d $DATASET -c $CONFIG -n $SAVE_DIR<br><p><strong>时间:</strong> $(date)</p>"
         conda deactivate
     fi
     sleep 60
