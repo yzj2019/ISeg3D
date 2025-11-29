@@ -23,9 +23,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 nohup sh scripts/train.sh -g 4 -d scannet -c insseg
 
 CUDA_VISIBLE_DEVICES=4,5,6,7 nohup sh scripts/train.sh -g 4 -d scannet -c iseg-agile3d-v1m1 -n iseg-agile3d-v1m1-1 > /dev/null 2>&1 &
 
-export QQ_EMAIL_USER=
-export QQ_EMAIL_PASS=
-nohup bash scripts/wait_gpu.sh -g 1,3,4,5 -e cu121_torch251 -d scannet -c iseg-agile3d-v1m1 -n iseg-agile3d-v1m1-2 > /dev/null 2>&1 &
+QQ_EMAIL_USER= QQ_EMAIL_PASS= nohup bash scripts/wait_gpu.sh -g 1,3,4,5 -e cu121_torch251 -d scannet -c iseg-agile3d-v1m1 -n iseg-agile3d-v1m1-2 > /dev/null 2>&1 &
 ```
 <!-- TODO 可学习的背景查询, 用于zero-shot分割背景前景 -->
 <!-- 在 MLP head 那里，建立一个 reverse MLP，用于语义查询 -->

@@ -2,7 +2,7 @@ _base_ = ["../_base_/insseg_default_runtime.py"]
 wandb_project = "AGILE3D"
 
 # misc custom setting
-batch_size = 12  # bs: total bs in all gpus
+batch_size = 9  # bs: total bs in all gpus
 num_worker = 12
 mix_prob = 0.8  # mix3d
 empty_cache = False
